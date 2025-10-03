@@ -63,6 +63,14 @@ GROQ_TEST_MODEL=groq/openai/gpt-oss-120b
 MISTRAL_API_KEY=your_mistral_api_key
 MISTRAL_TEST_MODEL=mistral/mistral-large-latest
 
+# Cohere Configuration (optional)
+COHERE_API_KEY=your_cohere_api_key
+COHERE_TEST_MODEL=cohere/command-a-reasoning-08-2025
+
+# Cloudflare Workers AI Configuration (optional)
+WORKERSAI_API_KEY=your_workers_ai_api_key
+WORKERSAI_TEST_MODEL=workers-ai/@cf/openai/gpt-oss-120b
+
 # XAI Configuration (optional)
 XAI_API_KEY=your_xai_api_key
 XAI_TEST_MODEL=xai/grok-beta
@@ -83,6 +91,8 @@ XAI_TEST_MODEL=xai/grok-beta
   - `GOOGLEAISTUDIO_TEST_MODEL`: Google AI Studio test model
   - `GROQ_TEST_MODEL`: Groq test model
   - `MISTRAL_TEST_MODEL`: Mistral test model
+  - `COHERE_TEST_MODEL`: Cohere test model
+  - `WORKERSAI_TEST_MODEL`: Cloudflare Workers AI test model
   - `XAI_TEST_MODEL`: XAI test model
 
 ## Usage
@@ -107,6 +117,8 @@ Supported test model environment variables:
 - `GOOGLEAISTUDIO_TEST_MODEL` with `GOOGLEAISTUDIO_API_KEY`
 - `GROQ_TEST_MODEL` with `GROQ_API_KEY`
 - `MISTRAL_TEST_MODEL` with `MISTRAL_API_KEY`
+- `COHERE_TEST_MODEL` with `COHERE_API_KEY`
+- `WORKERSAI_TEST_MODEL` with `WORKERSAI_API_KEY`
 - `XAI_TEST_MODEL` with `XAI_API_KEY`
 
 **Update to Latest Version**
@@ -145,6 +157,8 @@ curl http://localhost:38388/v1/chat/completions \
 - Google: `google/gemini-2.5-flash`
 - Groq: `groq/openai/gpt-oss-120b`
 - Mistral: `mistral/mistral-large-latest`
+- Cohere: `cohere/command-a-reasoning-08-2025`
+- Workers AI: `workers-ai/@cf/openai/gpt-oss-120b`
 
 **Streaming request (SSE):**
 ```bash
@@ -194,7 +208,7 @@ Snake Proxy (modify stream: false)
     ↓
 Cloudflare AI Gateway (/compat/chat/completions)
     ↓
-Provider API (OpenAI/Claude/Gemini/Groq/Mistral/etc., complete response)
+Provider API (OpenAI/Claude/Gemini/Groq/Mistral/Cohere/Workers AI/etc., complete response)
     ↓
 Cloudflare AI Gateway
     ↓
