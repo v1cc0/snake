@@ -1,6 +1,6 @@
 [package]
 name = "snake"
-version = "0.1.0-rev2"
+version = "0.1.0-rev3"
 edition = "2024"
 
 [dependencies]
