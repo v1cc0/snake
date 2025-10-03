@@ -130,6 +130,13 @@ snake update -y                       # Auto-confirm
 snake update --token "ghp_xxxxx"      # Use GitHub token (for rate limit)
 snake update -y --token "ghp_xxxxx"   # Combine options
 ```
+
+The update command will:
+- Download the latest binary from GitHub releases
+- Automatically detect if `snake.service` is running
+- Restart the service with the new version (if running)
+- If service exists but not running, prompt you to start it manually
+
 Note: GitHub token can also be set via `GITHUB_TOKEN` in `.env` file to avoid rate limiting.
 
 **Start Proxy Server**

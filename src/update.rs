@@ -1,4 +1,5 @@
 use std::env;
+use std::process::Command;
 use tracing::info;
 
 /// Check for updates and install if available
@@ -134,7 +135,64 @@ pub async fn check_and_update(
 
     info!("Successfully updated to version: {}", status.version());
     println!("\n✓ Update successful! New version: {}", status.version());
-    println!("Please restart the application to use the new version.");
+
+    // Check if snake.service exists and is running
+    let service_exists = std::path::Path::new("/etc/systemd/system/snake.service").exists();
+
+    if service_exists {
+        info!("Detected snake.service, checking status...");
+
+        // Check if service is active
+        let status_check = Command::new("systemctl")
+            .arg("is-active")
+            .arg("snake.service")
+            .output();
+
+        match status_check {
+            Ok(output) => {
+                let is_active = output.status.success();
+
+                if is_active {
+                    info!("Service is running, attempting to restart with new version...");
+                    println!("\n🔄 Detected running snake.service, restarting with new version...");
+
+                    // Restart the service
+                    let restart_result = Command::new("systemctl")
+                        .arg("restart")
+                        .arg("snake.service")
+                        .output();
+
+                    match restart_result {
+                        Ok(restart_output) => {
+                            if restart_output.status.success() {
+                                info!("Service restarted successfully");
+                                println!("✓ Service restarted successfully with new version");
+                            } else {
+                                let stderr = String::from_utf8_lossy(&restart_output.stderr);
+                                eprintln!("⚠️  Warning: Failed to restart service: {}", stderr);
+                                eprintln!("Please manually restart with: sudo systemctl restart snake.service");
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️  Warning: Failed to execute systemctl restart: {}", e);
+                            eprintln!("Please manually restart with: sudo systemctl restart snake.service");
+                        }
+                    }
+                } else {
+                    info!("Service exists but is not running, no restart needed");
+                    println!("ℹ️  snake.service exists but is not running");
+                    println!("   Start it with: sudo systemctl start snake.service");
+                }
+            }
+            Err(e) => {
+                info!("Failed to check service status: {}", e);
+                eprintln!("⚠️  Warning: Failed to check service status: {}", e);
+            }
+        }
+    } else {
+        info!("No snake.service detected");
+        println!("Please restart the application to use the new version.");
+    }
 
     Ok(())
 }
