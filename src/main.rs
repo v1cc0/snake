@@ -295,11 +295,25 @@ async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
         "max_tokens": 100
     });
 
-    match test_client.post(&test_url)
+    // Get CF_AIG_TOKEN or use a provider API key
+    let auth_token = env::var("CF_AIG_TOKEN")
+        .or_else(|_| env::var("OPENAI_API_KEY"))
+        .or_else(|_| env::var("CLAUDE_API_KEY"))
+        .or_else(|_| env::var("GEMNINI_API_KEY"))
+        .or_else(|_| env::var("GROK_API_KEY"))
+        .or_else(|_| env::var("MISTRAL_API_KEY"))
+        .or_else(|_| env::var("GROQ_API_KEY"))
+        .unwrap_or_default();
+
+    let mut request = test_client.post(&test_url)
         .header("Content-Type", "application/json")
-        .json(&test_payload)
-        .send()
-        .await
+        .json(&test_payload);
+
+    if !auth_token.is_empty() {
+        request = request.header("Authorization", format!("Bearer {}", auth_token));
+    }
+
+    match request.send().await
     {
         Ok(response) => {
             let status = response.status();
