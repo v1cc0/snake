@@ -141,24 +141,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cf-aigateway"
-version = "0.0.1"
-dependencies = [
- "axum",
- "bytes",
- "dotenvy",
- "http-body-util",
- "hyper",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1195,6 +1177,24 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+
+[[package]]
+name = "snake"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "bytes",
+ "dotenvy",
+ "http-body-util",
+ "hyper",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "socket2"
