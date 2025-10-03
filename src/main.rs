@@ -36,6 +36,9 @@ enum Commands {
         /// Skip confirmation prompt and update directly
         #[arg(short, long)]
         yes: bool,
+        /// GitHub personal access token for downloading releases (optional)
+        #[arg(short, long)]
+        token: Option<String>,
     },
     /// Start the proxy server (default if no command specified)
     Serve,
@@ -114,17 +117,36 @@ struct AppState {
 }
 
 // --- Update Functionality ---
-async fn check_and_update(skip_confirm: bool) -> Result<(), Box<dyn std::error::Error>> {
+async fn check_and_update(skip_confirm: bool, token: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
     info!("Current version: {}", VERSION);
     info!("Checking for updates from GitHub repository: {}/{}", REPO_OWNER, REPO_NAME);
 
-    let status = self_update::backends::github::Update::configure()
-        .repo_owner(REPO_OWNER)
-        .repo_name(REPO_NAME)
-        .bin_name("snake")
-        .show_download_progress(true)
-        .current_version(VERSION)
-        .build()?;
+    // Use token from CLI argument, or fall back to GITHUB_TOKEN env var
+    dotenvy::dotenv().ok();
+    let github_token = token.or_else(|| env::var("GITHUB_TOKEN").ok());
+
+    if github_token.is_some() {
+        info!("Using GitHub token for API requests");
+    }
+
+    let status = if let Some(ref token) = github_token {
+        self_update::backends::github::Update::configure()
+            .repo_owner(REPO_OWNER)
+            .repo_name(REPO_NAME)
+            .bin_name("snake")
+            .show_download_progress(true)
+            .current_version(VERSION)
+            .auth_token(token)
+            .build()?
+    } else {
+        self_update::backends::github::Update::configure()
+            .repo_owner(REPO_OWNER)
+            .repo_name(REPO_NAME)
+            .bin_name("snake")
+            .show_download_progress(true)
+            .current_version(VERSION)
+            .build()?
+    };
 
     let latest_release = status.get_latest_release()?;
     let latest_version = latest_release.version.trim_start_matches('v');
@@ -180,14 +202,26 @@ async fn check_and_update(skip_confirm: bool) -> Result<(), Box<dyn std::error::
     }
 
     info!("Downloading and installing update...");
-    let status = self_update::backends::github::Update::configure()
-        .repo_owner(REPO_OWNER)
-        .repo_name(REPO_NAME)
-        .bin_name("snake")
-        .show_download_progress(true)
-        .current_version(VERSION)
-        .build()?
-        .update()?;
+    let status = if let Some(ref token) = github_token {
+        self_update::backends::github::Update::configure()
+            .repo_owner(REPO_OWNER)
+            .repo_name(REPO_NAME)
+            .bin_name("snake")
+            .show_download_progress(true)
+            .current_version(VERSION)
+            .auth_token(token)
+            .build()?
+            .update()?
+    } else {
+        self_update::backends::github::Update::configure()
+            .repo_owner(REPO_OWNER)
+            .repo_name(REPO_NAME)
+            .bin_name("snake")
+            .show_download_progress(true)
+            .current_version(VERSION)
+            .build()?
+            .update()?
+    };
 
     info!("Successfully updated to version: {}", status.version());
     println!("\n✓ Update successful! New version: {}", status.version());
@@ -441,8 +475,8 @@ async fn main() {
 
     // Handle commands
     match cli.command {
-        Some(Commands::Update { yes }) => {
-            if let Err(e) = check_and_update(yes).await {
+        Some(Commands::Update { yes, token }) => {
+            if let Err(e) = check_and_update(yes, token).await {
                 error!("Update failed: {}", e);
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
