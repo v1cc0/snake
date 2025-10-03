@@ -287,8 +287,13 @@ async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
         axum::serve(listener, app).await
     });
 
-    // Wait a bit for server to start
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    // Wait for server to start and verify it's listening
+    for _ in 0..20 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        if tokio::net::TcpStream::connect(&listen_addr).await.is_ok() {
+            break;
+        }
+    }
 
     println!("✓ Test server started");
 
@@ -538,14 +543,29 @@ async fn proxy_handler(
     };
 
     // Send request to Cloudflare
-    let client_request = state.client.request(method, &target_url).headers(headers);
+    // Filter out hop-by-hop headers that should not be forwarded
+    let mut filtered_headers = headers.clone();
+    filtered_headers.remove("host");  // reqwest will set this based on target URL
+    filtered_headers.remove("connection");
+    filtered_headers.remove("keep-alive");
+    filtered_headers.remove("proxy-authenticate");
+    filtered_headers.remove("proxy-authorization");
+    filtered_headers.remove("te");
+    filtered_headers.remove("trailers");
+    filtered_headers.remove("transfer-encoding");
+    filtered_headers.remove("upgrade");
+
+    info!("Sending request to Cloudflare...");
+    let client_request = state.client.request(method, &target_url).headers(filtered_headers).body(modified_body);
     let response = client_request
-        .body(modified_body)
         .send()
         .await
         .map_err(|e| {
+            error!("Failed to forward request to Cloudflare: {}", e);
             ProxyError::BadGateway(format!("Failed to forward request to target: {}", e))
         })?;
+
+    info!("Received response from Cloudflare, status: {}", response.status());
 
     let status = response.status();
     let response_headers = response.headers().clone();
@@ -553,7 +573,12 @@ async fn proxy_handler(
     let bytes = response
         .bytes()
         .await
-        .map_err(|e| ProxyError::BadGateway(format!("Failed to read response body: {}", e)))?;
+        .map_err(|e| {
+            error!("Failed to read response body from Cloudflare: {}", e);
+            ProxyError::BadGateway(format!("Failed to read response body: {}", e))
+        })?;
+
+    info!("Read response body, {} bytes", bytes.len());
 
     // If the original request wanted streaming, convert the response to SSE format
     if was_stream_request {
@@ -562,11 +587,24 @@ async fn proxy_handler(
     }
 
     // Otherwise, return the response as-is
-    let mut axum_res = Response::new(Body::empty());
-    *axum_res.status_mut() = status;
-    *axum_res.headers_mut() = response_headers;
-    *axum_res.body_mut() = Body::from(bytes);
+    info!("Preparing response to send back to client");
 
+    // Filter out hop-by-hop headers from the response
+    let mut filtered_response_headers = response_headers.clone();
+    filtered_response_headers.remove("connection");
+    filtered_response_headers.remove("keep-alive");
+    filtered_response_headers.remove("proxy-authenticate");
+    filtered_response_headers.remove("proxy-authorization");
+    filtered_response_headers.remove("te");
+    filtered_response_headers.remove("trailers");
+    filtered_response_headers.remove("transfer-encoding");
+    filtered_response_headers.remove("upgrade");
+
+    let mut axum_res = Response::new(Body::from(bytes));
+    *axum_res.status_mut() = status;
+    *axum_res.headers_mut() = filtered_response_headers;
+
+    info!("Returning response to client");
     Ok(axum_res)
 }
 
