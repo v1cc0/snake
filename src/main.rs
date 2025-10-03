@@ -140,16 +140,14 @@ async fn check_and_update(skip_confirm: bool) -> Result<(), Box<dyn std::error::
     // Try to parse and compare versions using semver
     let needs_update = match (semver::Version::parse(VERSION), semver::Version::parse(latest_version)) {
         (Ok(current), Ok(latest)) => {
-            if latest > current {
-                // Clear case: newer version available
-                true
-            } else if current > latest {
-                // Current version is newer (unlikely, but possible during development)
-                false
+            // Compare major.minor.patch only
+            if current.major != latest.major || current.minor != latest.minor || current.patch != latest.patch {
+                // Different version numbers - use normal semver comparison
+                latest > current
             } else {
-                // Versions are semver-equal but strings differ (e.g., 0.0.8 vs 0.0.8-1)
-                // This happens with pre-release/build metadata differences
-                // Ask user if they want to update
+                // Same major.minor.patch but different pre-release/build metadata
+                // Always offer to update in this case (e.g., 0.0.8 -> 0.0.8-1, 0.0.8-1 -> 0.0.8-2)
+                // This handles hotfix releases properly
                 true
             }
         }
