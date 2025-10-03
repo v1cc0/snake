@@ -550,9 +550,10 @@ async fn proxy_handler(
     };
 
     // Send request to Cloudflare
-    // Filter out hop-by-hop headers that should not be forwarded
+    // Filter out hop-by-hop headers and headers that reqwest will set automatically
     let mut filtered_headers = headers.clone();
     filtered_headers.remove("host");  // reqwest will set this based on target URL
+    filtered_headers.remove("content-length");  // reqwest will set this based on body size
     filtered_headers.remove("connection");
     filtered_headers.remove("keep-alive");
     filtered_headers.remove("proxy-authenticate");
@@ -563,6 +564,9 @@ async fn proxy_handler(
     filtered_headers.remove("upgrade");
 
     info!("Sending request to Cloudflare...");
+    if was_stream_request {
+        info!("Modified body for non-streaming request, new size: {} bytes", modified_body.len());
+    }
     let client_request = state.client.request(method, &target_url).headers(filtered_headers).body(modified_body);
     let response = client_request
         .send()
