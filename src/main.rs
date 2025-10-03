@@ -69,9 +69,9 @@ impl IntoResponse for ProxyError {
 // Structure to hold runtime configuration loaded from environment variables
 #[derive(Clone)]
 struct Config {
-    // Cloudflare AI Gateway a base URL for the, not including the compatibility mode path
+    // Cloudflare AI Gateway base URL (e.g., https://gateway.ai.cloudflare.com/v1/{account}/{gateway})
     cf_base_gateway_url: String,
-    // The path segment for the OpenAI compatibility mode
+    // The path segment for the provider (e.g., /openai)
     openai_compat_path: String,
     listen_addr: String,
 }
@@ -96,7 +96,7 @@ impl Config {
             "https://gateway.ai.cloudflare.com/v1/{}/{}",
             account_id, gateway_id
         );
-        let openai_compat_path = "/compat".to_string();
+        let openai_compat_path = "/openai".to_string();
 
         Ok(Self {
             cf_base_gateway_url,
@@ -211,6 +211,15 @@ async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ├─ ACCOUNT_ID: {}", account_id_display);
     println!("  ├─ GATEWAY_ID: {}", gateway_id_display);
 
+    // Check CF_AIG_TOKEN
+    let cf_aig_token = env::var("CF_AIG_TOKEN").unwrap_or_default();
+    let cf_token_display = if cf_aig_token.is_empty() {
+        "⚠️  NOT SET".to_string()
+    } else {
+        mask_api_key(&cf_aig_token)
+    };
+    println!("  ├─ CF_AIG_TOKEN: {}", cf_token_display);
+
     // Check provider API keys
     println!("  └─ Provider API Keys:");
     let mut has_api_key = false;
@@ -311,11 +320,17 @@ async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
     // Add cf-aig-authorization header if CF_AIG_TOKEN is set
     if !cf_aig_token.is_empty() {
         request = request.header("cf-aig-authorization", format!("Bearer {}", cf_aig_token));
+        println!("  ├─ Added cf-aig-authorization header");
+    } else {
+        println!("  ⚠️  CF_AIG_TOKEN not set, skipping cf-aig-authorization header");
     }
 
     // Add Authorization header with provider API key
     if !provider_key.is_empty() {
         request = request.header("Authorization", format!("Bearer {}", provider_key));
+        println!("  ├─ Added Authorization header");
+    } else {
+        println!("  ⚠️  No provider API key found, skipping Authorization header");
     }
 
     match request.send().await
@@ -476,12 +491,26 @@ async fn proxy_handler(
         .unwrap_or(parts.uri.path());
 
     // Construct the full target URL
+    // Strip /v1 prefix from path if present (e.g., /v1/chat/completions -> /chat/completions)
+    let cleaned_path = path_query.strip_prefix("/v1").unwrap_or(path_query);
     let target_url = format!(
         "{}{}{}",
-        state.config.cf_base_gateway_url, state.config.openai_compat_path, path_query
+        state.config.cf_base_gateway_url, state.config.openai_compat_path, cleaned_path
     );
 
     info!("Forwarding request to: {} {}", method, target_url);
+
+    // Log headers for debugging
+    if let Some(cf_aig_auth) = headers.get("cf-aig-authorization") {
+        info!("Found cf-aig-authorization header: {:?}", cf_aig_auth);
+    } else {
+        info!("cf-aig-authorization header not found");
+    }
+    if let Some(auth) = headers.get("authorization") {
+        info!("Found authorization header");
+    } else {
+        info!("authorization header not found");
+    }
 
     // Read the request body
     let full_body = body
