@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-20.04  # Use Ubuntu 20.04 for older GLIBC 2.31 (better compatibility)
+    runs-on: ubuntu-22.04  # Use Ubuntu 22.04 for GLIBC 2.35 (better runner availability)
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
