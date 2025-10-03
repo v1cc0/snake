@@ -1,0 +1,132 @@
+name: Release Binary
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Cargo.toml'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Evaluate version change
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          CRATE_NAME=$(sed -n 's/^name = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          if [ -z "$VERSION" ] || [ -z "$CRATE_NAME" ]; then
+            echo "Unable to read package name or version from Cargo.toml" >&2
+            exit 1
+          fi
+
+          if git rev-parse HEAD^ >/dev/null 2>&1; then
+            PREVIOUS_VERSION=$(git show HEAD^:Cargo.toml | sed -n 's/^version = "\(.*\)"/\1/p' | head -n 1)
+          else
+            PREVIOUS_VERSION=""
+          fi
+
+          if [ "$PREVIOUS_VERSION" = "$VERSION" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "crate_name=$CRATE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Skip release
+        if: steps.metadata.outputs.skip == 'true'
+        run: echo "Cargo version unchanged; skipping release pipeline."
+
+      - name: Prepare tag
+        if: steps.metadata.outputs.skip == 'false'
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.metadata.outputs.version }}"
+          git fetch --tags --force
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; aborting to prevent overwrite." >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        if: steps.metadata.outputs.skip == 'false'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Build release binary
+        if: steps.metadata.outputs.skip == 'false'
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Stage release binary
+        if: steps.metadata.outputs.skip == 'false'
+        id: artifact
+        shell: bash
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+          CRATE_NAME: ${{ steps.metadata.outputs.crate_name }}
+        run: |
+          set -euo pipefail
+          TARGET="target/x86_64-unknown-linux-gnu/release/${CRATE_NAME}"
+          if [ ! -f "$TARGET" ]; then
+            echo "Binary not found at $TARGET" >&2
+            exit 1
+          fi
+
+          DEST_DIR="releases"
+          DEST_FILE="${DEST_DIR}/${CRATE_NAME}-${VERSION}-x86_64-unknown-linux-gnu"
+          mkdir -p "$DEST_DIR"
+          cp "$TARGET" "$DEST_FILE"
+          chmod +x "$DEST_FILE"
+          echo "path=$DEST_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Configure git user
+        if: steps.metadata.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit release binary
+        if: steps.metadata.outputs.skip == 'false'
+        env:
+          ARTIFACT_PATH: ${{ steps.artifact.outputs.path }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add "$ARTIFACT_PATH"
+          if git diff --cached --quiet; then
+            echo "No changes staged for commit; aborting release." >&2
+            exit 1
+          fi
+          git commit -m "chore(release): add binary for v${VERSION}"
+
+      - name: Create tag
+        if: steps.metadata.outputs.skip == 'false'
+        env:
+          TAG_NAME: ${{ steps.tag.outputs.tag }}
+        run: git tag "$TAG_NAME"
+
+      - name: Push release commit and tag
+        if: steps.metadata.outputs.skip == 'false'
+        env:
+          TAG_NAME: ${{ steps.tag.outputs.tag }}
+        run: |
+          git push origin HEAD
+          git push origin "$TAG_NAME"
