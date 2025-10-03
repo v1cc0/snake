@@ -1,2 +1,14 @@
 /target
 .env
+Cargo.lock
+
+# VScode
+.vscode/*
+.vscode
+
+# agent files
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+PROGRESS.md
+INCIDENT.md

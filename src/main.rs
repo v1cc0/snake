@@ -2,13 +2,15 @@ use axum::{
     Router,
     body::Body,
     extract::State,
-    http::{Request, StatusCode},
+    http::{Request, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use http_body_util::BodyExt;
 use reqwest::Client;
+use serde_json::{Value, json};
 use std::env;
 use std::net::SocketAddr;
+use tokio_stream::wrappers::ReceiverStream;
 use tracing::{Level, error, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -165,31 +167,127 @@ async fn proxy_handler(
 
     info!("Forwarding request to: {} {}", method, target_url);
 
-    // Use the reqwest client's builder to construct and send the request
-    let client_request = state.client.request(method, &target_url).headers(headers);
-
+    // Read the request body
     let full_body = body
         .collect()
         .await
         .map_err(|e| ProxyError::BadRequest(format!("Failed to read request body: {}", e)))?;
+    let body_bytes = full_body.to_bytes();
 
+    // Try to parse the body as JSON and check for stream parameter
+    let (modified_body, was_stream_request) = if let Ok(mut json_body) = serde_json::from_slice::<Value>(&body_bytes) {
+        let was_stream = json_body.get("stream").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        if was_stream {
+            info!("Detected stream request, converting to non-stream for Cloudflare");
+            json_body["stream"] = json!(false);
+            let modified = serde_json::to_vec(&json_body)
+                .map_err(|e| ProxyError::BadRequest(format!("Failed to serialize modified body: {}", e)))?;
+            (modified, true)
+        } else {
+            (body_bytes.to_vec(), false)
+        }
+    } else {
+        // Not a JSON body or parsing failed, use as-is
+        (body_bytes.to_vec(), false)
+    };
+
+    // Send request to Cloudflare
+    let client_request = state.client.request(method, &target_url).headers(headers);
     let response = client_request
-        .body(full_body.to_bytes())
+        .body(modified_body)
         .send()
         .await
         .map_err(|e| {
             ProxyError::BadGateway(format!("Failed to forward request to target: {}", e))
         })?;
 
-    let mut axum_res = Response::new(Body::empty());
-    *axum_res.status_mut() = response.status();
-    *axum_res.headers_mut() = response.headers().clone();
+    let status = response.status();
+    let response_headers = response.headers().clone();
 
     let bytes = response
         .bytes()
         .await
         .map_err(|e| ProxyError::BadGateway(format!("Failed to read response body: {}", e)))?;
+
+    // If the original request wanted streaming, convert the response to SSE format
+    if was_stream_request {
+        info!("Converting response to SSE stream format");
+        return Ok(convert_to_sse_stream(status, bytes));
+    }
+
+    // Otherwise, return the response as-is
+    let mut axum_res = Response::new(Body::empty());
+    *axum_res.status_mut() = status;
+    *axum_res.headers_mut() = response_headers;
     *axum_res.body_mut() = Body::from(bytes);
 
     Ok(axum_res)
+}
+
+/// Converts a complete response to SSE (Server-Sent Events) stream format
+fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -> Response {
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(100);
+
+    tokio::spawn(async move {
+        // Parse the response JSON
+        if let Ok(json_response) = serde_json::from_slice::<Value>(&response_bytes) {
+            // Check if it's a chat completion response
+            if let Some(choices) = json_response.get("choices").and_then(|v| v.as_array()) {
+                // Send each choice as a separate SSE chunk
+                for choice in choices {
+                    let mut stream_chunk = json!({
+                        "choices": [choice],
+                        "created": json_response.get("created").cloned().unwrap_or(json!(0)),
+                        "id": json_response.get("id").cloned().unwrap_or(json!("unknown")),
+                        "model": json_response.get("model").cloned().unwrap_or(json!("unknown")),
+                        "object": "chat.completion.chunk"
+                    });
+
+                    // Add usage info if this is the last chunk
+                    if let Some(usage) = json_response.get("usage") {
+                        stream_chunk["usage"] = usage.clone();
+                    }
+
+                    let sse_data = format!("data: {}\n\n", serde_json::to_string(&stream_chunk).unwrap_or_default());
+                    if tx.send(Ok(sse_data)).await.is_err() {
+                        break;
+                    }
+                }
+            } else {
+                // Not a standard chat completion, send the whole response as one chunk
+                let sse_data = format!("data: {}\n\n", serde_json::to_string(&json_response).unwrap_or_default());
+                let _ = tx.send(Ok(sse_data)).await;
+            }
+        } else {
+            // Failed to parse JSON, send raw data
+            if let Ok(text) = String::from_utf8(response_bytes.to_vec()) {
+                let sse_data = format!("data: {}\n\n", text);
+                let _ = tx.send(Ok(sse_data)).await;
+            }
+        }
+
+        // Send the [DONE] marker
+        let _ = tx.send(Ok("data: [DONE]\n\n".to_string())).await;
+    });
+
+    let stream = ReceiverStream::new(rx);
+    let body = Body::from_stream(stream);
+
+    let mut response = Response::new(body);
+    *response.status_mut() = status;
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        "text/event-stream".parse().unwrap(),
+    );
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        "no-cache".parse().unwrap(),
+    );
+    response.headers_mut().insert(
+        header::CONNECTION,
+        "keep-alive".parse().unwrap(),
+    );
+
+    response
 }
