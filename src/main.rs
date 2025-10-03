@@ -130,6 +130,44 @@ async fn main() {
         config.listen_addr
     );
 
+    // Test network connectivity to Cloudflare AI Gateway before starting server
+    info!("Testing network connectivity to gateway.ai.cloudflare.com...");
+    let test_client = Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("Failed to build HTTP client");
+
+    let test_url = "https://gateway.ai.cloudflare.com";
+    match test_client.head(test_url).send().await {
+        Ok(response) => {
+            if response.status().is_success() || response.status().is_redirection() {
+                info!("✓ Network connectivity test passed (status: {})", response.status());
+            } else {
+                error!("Network connectivity test failed: HTTP {}", response.status());
+                eprintln!("\n❌ Error: Cannot reach Cloudflare AI Gateway");
+                eprintln!("   URL: {}", test_url);
+                eprintln!("   Status: {}", response.status());
+                eprintln!("\nPlease check:");
+                eprintln!("  1. Your internet connection");
+                eprintln!("  2. Firewall settings");
+                eprintln!("  3. DNS resolution for gateway.ai.cloudflare.com");
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            error!("Network connectivity test failed: {}", e);
+            eprintln!("\n❌ Error: Cannot reach Cloudflare AI Gateway");
+            eprintln!("   URL: {}", test_url);
+            eprintln!("   Error: {}", e);
+            eprintln!("\nPlease check:");
+            eprintln!("  1. Your internet connection");
+            eprintln!("  2. Firewall settings");
+            eprintln!("  3. DNS resolution for gateway.ai.cloudflare.com");
+            eprintln!("  4. Proxy settings (if applicable)");
+            std::process::exit(1);
+        }
+    }
+
     // Create a single, shared reqwest client for connection pooling and performance.
     let client = Client::new();
     let app_state = AppState {
