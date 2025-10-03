@@ -44,7 +44,7 @@ GATEWAY_ID=your_gateway_id
 CF_AIG_TOKEN=your_cloudflare_ai_gateway_token
 PROVIDER_URL=https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
 OPENAI_API_KEY=your_openai_api_key
-OPENAI_TEST_MODEL=openai/gpt-4o-mini
+OPENAI_TEST_MODEL=openai/gpt-5-2025-08-07
 ```
 
 **Required Variables:**
@@ -55,7 +55,7 @@ OPENAI_TEST_MODEL=openai/gpt-4o-mini
 
 **Optional Variables:**
 - `HOST_PORT`: Port to listen on (default: 3000)
-- `OPENAI_TEST_MODEL`: Model for configuration testing (default: openai/gpt-4o-mini, must use `provider/model` format)
+- `OPENAI_TEST_MODEL`: Model for configuration testing (default: openai/gpt-5-2025-08-07, must use `provider/model` format)
 - `GITHUB_TOKEN`: GitHub personal access token for updates (avoids rate limiting)
 
 ## Usage
@@ -93,15 +93,17 @@ curl http://localhost:38388/v1/chat/completions \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "openai/gpt-4o-mini",
+    "model": "openai/gpt-5-2025-08-07",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
 
 **Note**: Model must be in `provider/model` format. Examples:
-- OpenAI: `openai/gpt-4o-mini`, `openai/gpt-4`
+- OpenAI: `openai/gpt-5-2025-08-07`, `openai/gpt-4o-mini`
 - Anthropic: `anthropic/claude-3-5-sonnet-20241022`
-- Google: `google/gemini-1.5-pro`
+- Google: `google/gemini-2.5-flash`
+- Groq: `groq/openai/gpt-oss-120b`
+- Mistral: `mistral/mistral-large-latest`
 
 **Streaming request (SSE):**
 ```bash
@@ -110,7 +112,7 @@ curl http://localhost:38388/v1/chat/completions \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "openai/gpt-4o-mini",
+    "model": "openai/gpt-5-2025-08-07",
     "messages": [{"role": "user", "content": "What is AI?"}],
     "stream": true
   }'
@@ -145,13 +147,13 @@ cargo build --release
 ## Architecture
 
 ```
-Client Request (stream: true, model: "openai/gpt-4o-mini")
+Client Request (stream: true, model: "openai/gpt-5-2025-08-07")
     ↓
 Snake Proxy (modify stream: false)
     ↓
 Cloudflare AI Gateway (/compat/chat/completions)
     ↓
-Provider API (OpenAI/Claude/etc., complete response)
+Provider API (OpenAI/Claude/Gemini/Groq/Mistral/etc., complete response)
     ↓
 Cloudflare AI Gateway
     ↓
