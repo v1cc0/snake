@@ -68,7 +68,6 @@ pub async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
         ("Groq", "GROQ_API_KEY"),
         ("Mistral", "MISTRAL_API_KEY"),
         ("Cohere", "COHERE_API_KEY"),
-        ("Workers AI", "WORKERSAI_API_KEY"),
         ("XAI", "XAI_API_KEY"),
     ] {
         let key = env::var(env_key).unwrap_or_default();
@@ -144,7 +143,6 @@ pub async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
         ("Groq", "GROQ_API_KEY", "GROQ_TEST_MODEL"),
         ("Mistral", "MISTRAL_API_KEY", "MISTRAL_TEST_MODEL"),
         ("Cohere", "COHERE_API_KEY", "COHERE_TEST_MODEL"),
-        ("Workers AI", "WORKERSAI_API_KEY", "WORKERSAI_TEST_MODEL"),
         ("XAI", "XAI_API_KEY", "XAI_TEST_MODEL"),
     ];
 
