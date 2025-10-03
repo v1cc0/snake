@@ -288,16 +288,15 @@ async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
 
     let test_url = format!("http://127.0.0.1:{}/v1/chat/completions", host_port);
     let test_payload = json!({
-        "model": "gpt-5-mini",
+        "model": "gpt-5-nano",
         "messages": [
             {"role": "user", "content": "Do you like snake?"}
-        ],
-        "max_tokens": 100
+        ]
     });
 
-    // Get CF_AIG_TOKEN or use a provider API key
-    let auth_token = env::var("CF_AIG_TOKEN")
-        .or_else(|_| env::var("OPENAI_API_KEY"))
+    // Get CF_AIG_TOKEN and provider API key
+    let cf_aig_token = env::var("CF_AIG_TOKEN").unwrap_or_default();
+    let provider_key = env::var("OPENAI_API_KEY")
         .or_else(|_| env::var("CLAUDE_API_KEY"))
         .or_else(|_| env::var("GEMNINI_API_KEY"))
         .or_else(|_| env::var("GROK_API_KEY"))
@@ -309,8 +308,14 @@ async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
         .header("Content-Type", "application/json")
         .json(&test_payload);
 
-    if !auth_token.is_empty() {
-        request = request.header("Authorization", format!("Bearer {}", auth_token));
+    // Add cf-aig-authorization header if CF_AIG_TOKEN is set
+    if !cf_aig_token.is_empty() {
+        request = request.header("cf-aig-authorization", format!("Bearer {}", cf_aig_token));
+    }
+
+    // Add Authorization header with provider API key
+    if !provider_key.is_empty() {
+        request = request.header("Authorization", format!("Bearer {}", provider_key));
     }
 
     match request.send().await
