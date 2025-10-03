@@ -48,18 +48,13 @@ pub async fn proxy_handler(
     let (parts, body) = req.into_parts();
     let method = parts.method;
     let headers = parts.headers;
-    let path_query = parts
-        .uri
-        .path_and_query()
-        .map(|v| v.as_str())
-        .unwrap_or(parts.uri.path());
 
     // Construct the full target URL
-    // Strip /v1 prefix from path if present (e.g., /v1/chat/completions -> /chat/completions)
-    let cleaned_path = path_query.strip_prefix("/v1").unwrap_or(path_query);
+    // Always use the fixed /compat/chat/completions endpoint regardless of request path
+    // This endpoint requires model in "provider/model" format (e.g., "openai/gpt-4o-mini")
     let target_url = format!(
-        "{}{}{}",
-        state.config.cf_base_gateway_url, state.config.openai_compat_path, cleaned_path
+        "{}{}",
+        state.config.cf_base_gateway_url, state.config.openai_compat_path
     );
 
     info!("Forwarding request to: {} {}", method, target_url);

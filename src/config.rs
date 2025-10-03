@@ -33,7 +33,7 @@ impl Config {
             "https://gateway.ai.cloudflare.com/v1/{}/{}",
             account_id, gateway_id
         );
-        let openai_compat_path = "/openai".to_string();
+        let openai_compat_path = "/compat/chat/completions".to_string();
 
         Ok(Self {
             cf_base_gateway_url,

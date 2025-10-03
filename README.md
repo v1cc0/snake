@@ -44,7 +44,7 @@ GATEWAY_ID=your_gateway_id
 CF_AIG_TOKEN=your_cloudflare_ai_gateway_token
 PROVIDER_URL=https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
 OPENAI_API_KEY=your_openai_api_key
-OPENAI_TEST_MODEL=gpt-4o-mini
+OPENAI_TEST_MODEL=openai/gpt-4o-mini
 ```
 
 **Required Variables:**
@@ -55,7 +55,7 @@ OPENAI_TEST_MODEL=gpt-4o-mini
 
 **Optional Variables:**
 - `HOST_PORT`: Port to listen on (default: 3000)
-- `OPENAI_TEST_MODEL`: Model for configuration testing (default: gpt-4o-mini)
+- `OPENAI_TEST_MODEL`: Model for configuration testing (default: openai/gpt-4o-mini, must use `provider/model` format)
 - `GITHUB_TOKEN`: GitHub personal access token for updates (avoids rate limiting)
 
 ## Usage
@@ -93,10 +93,15 @@ curl http://localhost:38388/v1/chat/completions \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gpt-4o-mini",
+    "model": "openai/gpt-4o-mini",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
+
+**Note**: Model must be in `provider/model` format. Examples:
+- OpenAI: `openai/gpt-4o-mini`, `openai/gpt-4`
+- Anthropic: `anthropic/claude-3-5-sonnet-20241022`
+- Google: `google/gemini-1.5-pro`
 
 **Streaming request (SSE):**
 ```bash
@@ -105,7 +110,7 @@ curl http://localhost:38388/v1/chat/completions \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gpt-4o-mini",
+    "model": "openai/gpt-4o-mini",
     "messages": [{"role": "user", "content": "What is AI?"}],
     "stream": true
   }'
@@ -140,13 +145,13 @@ cargo build --release
 ## Architecture
 
 ```
-Client Request (stream: true)
+Client Request (stream: true, model: "openai/gpt-4o-mini")
     ↓
-Snake Proxy (strip /v1, modify stream: false)
+Snake Proxy (modify stream: false)
     ↓
-Cloudflare AI Gateway (/openai/chat/completions)
+Cloudflare AI Gateway (/compat/chat/completions)
     ↓
-OpenAI API (complete response)
+Provider API (OpenAI/Claude/etc., complete response)
     ↓
 Cloudflare AI Gateway
     ↓

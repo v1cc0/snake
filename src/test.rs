@@ -135,9 +135,10 @@ pub async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Test server started");
 
     // Determine which model to use for testing
+    // Note: Model must be in "provider/model" format (e.g., "openai/gpt-4o-mini")
     let test_model = env::var("OPENAI_TEST_MODEL").unwrap_or_else(|_| {
-        info!("OPENAI_TEST_MODEL not set, using default: gpt-5-mini");
-        "gpt-5-mini".to_string()
+        info!("OPENAI_TEST_MODEL not set, using default: openai/gpt-4o-mini");
+        "openai/gpt-4o-mini".to_string()
     });
 
     println!("\n📤 Sending test request: \"Do you like snake?\"");
