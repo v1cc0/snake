@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04  # Use Ubuntu 20.04 for older GLIBC 2.31 (better compatibility)
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,12 +67,10 @@ jobs:
       - name: Install Rust toolchain
         if: steps.metadata.outputs.skip == 'false'
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu
 
       - name: Build release binary
         if: steps.metadata.outputs.skip == 'false'
-        run: cargo build --release --target x86_64-unknown-linux-gnu
+        run: cargo build --release
 
       - name: Prepare release asset
         if: steps.metadata.outputs.skip == 'false'
@@ -83,7 +81,7 @@ jobs:
           CRATE_NAME: ${{ steps.metadata.outputs.crate_name }}
         run: |
           set -euo pipefail
-          TARGET="target/x86_64-unknown-linux-gnu/release/${CRATE_NAME}"
+          TARGET="target/release/${CRATE_NAME}"
           if [ ! -f "$TARGET" ]; then
             echo "Binary not found at $TARGET" >&2
             exit 1

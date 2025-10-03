@@ -11,8 +11,16 @@ A lightweight, high-performance HTTP proxy that forwards OpenAI-compatible reque
 - **Structured Logging**: Comprehensive tracing via `tracing` crate
 
 ## Prerequisites
-- Rust toolchain (1.77 or later is recommended; the crate targets the Rust 2024 edition).
+- **For running the binary**: Linux x86_64 with GLIBC 2.31+ (Ubuntu 20.04+, Debian 11+, etc.)
+- **For building from source**: Rust toolchain (1.77 or later is recommended; the crate targets the Rust 2024 edition).
 - A Cloudflare account with an AI Gateway configured and the corresponding `ACCOUNT_ID` and `GATEWAY_ID` values.
+
+### GLIBC Compatibility Note
+Pre-built binaries require GLIBC 2.31 or later (Ubuntu 20.04+). If you encounter `GLIBC_X.XX not found` errors:
+1. **Build from source** on your system: `make build`
+2. Or use a newer Linux distribution
+
+The GitHub releases are built on Ubuntu 20.04 for maximum compatibility.
 
 ## Installation
 
