@@ -74,9 +74,9 @@ jobs:
         if: steps.metadata.outputs.skip == 'false'
         run: cargo build --release --target x86_64-unknown-linux-gnu
 
-      - name: Stage release binary
+      - name: Prepare release asset
         if: steps.metadata.outputs.skip == 'false'
-        id: artifact
+        id: prepare_asset
         shell: bash
         env:
           VERSION: ${{ steps.metadata.outputs.version }}
@@ -94,39 +94,14 @@ jobs:
           mkdir -p "$DEST_DIR"
           cp "$TARGET" "$DEST_FILE"
           chmod +x "$DEST_FILE"
-          echo "path=$DEST_FILE" >> "$GITHUB_OUTPUT"
+          echo "asset_path=$DEST_FILE" >> "$GITHUB_OUTPUT"
 
-      - name: Configure git user
+      - name: Create GitHub release
         if: steps.metadata.outputs.skip == 'false'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Commit release binary
-        if: steps.metadata.outputs.skip == 'false'
-        env:
-          ARTIFACT_PATH: ${{ steps.artifact.outputs.path }}
-          VERSION: ${{ steps.metadata.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add "$ARTIFACT_PATH"
-          if git diff --cached --quiet; then
-            echo "No changes staged for commit; aborting release." >&2
-            exit 1
-          fi
-          git commit -m "chore(release): add binary for v${VERSION}"
-
-      - name: Create tag
-        if: steps.metadata.outputs.skip == 'false'
-        env:
-          TAG_NAME: ${{ steps.tag.outputs.tag }}
-        run: git tag "$TAG_NAME"
-
-      - name: Push release commit and tag
-        if: steps.metadata.outputs.skip == 'false'
-        env:
-          TAG_NAME: ${{ steps.tag.outputs.tag }}
-        run: |
-          git push origin HEAD
-          git push origin "$TAG_NAME"
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: ${{ steps.prepare_asset.outputs.asset_path }}
+          generate_release_notes: true
