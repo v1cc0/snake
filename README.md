@@ -155,11 +155,22 @@ Snake Proxy (convert to SSE, word-by-word streaming)
 Client (receives SSE stream)
 ```
 
+**Module Structure (v0.1.0+):**
+```
+src/
+├── main.rs       140 lines  - CLI entry point and routing
+├── config.rs      44 lines  - Configuration management
+├── update.rs     140 lines  - Self-update functionality
+├── test.rs       241 lines  - Configuration testing
+├── proxy.rs      180 lines  - Request proxy handler
+└── stream.rs     145 lines  - SSE streaming conversion
+```
+
 **Key Components:**
-- **Request Handler**: Filters hop-by-hop headers, modifies body
-- **SSE Converter**: Splits complete response into word-by-word chunks
-- **Update Manager**: GitHub release integration with semver comparison
-- **Config Validator**: `.env` file validation and test request
+- **Request Handler** (proxy.rs): Filters hop-by-hop headers, modifies body
+- **SSE Converter** (stream.rs): Splits complete response into word-by-word chunks
+- **Update Manager** (update.rs): GitHub release integration with semver comparison
+- **Config Validator** (test.rs): `.env` file validation and test request
 
 ## Logging
 
