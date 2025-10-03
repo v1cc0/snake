@@ -56,6 +56,7 @@ OPENAI_TEST_MODEL=gpt-4o-mini
 **Optional Variables:**
 - `HOST_PORT`: Port to listen on (default: 3000)
 - `OPENAI_TEST_MODEL`: Model for configuration testing (default: gpt-4o-mini)
+- `GITHUB_TOKEN`: GitHub personal access token for updates (avoids rate limiting)
 
 ## Usage
 
@@ -69,9 +70,12 @@ Validates your `.env` configuration and sends a test request.
 
 **Update to Latest Version**
 ```bash
-snake update        # Interactive prompt
-snake update -y     # Auto-confirm
+snake update                          # Interactive prompt
+snake update -y                       # Auto-confirm
+snake update --token "ghp_xxxxx"      # Use GitHub token (for rate limit)
+snake update -y --token "ghp_xxxxx"   # Combine options
 ```
+Note: GitHub token can also be set via `GITHUB_TOKEN` in `.env` file to avoid rate limiting.
 
 **Start Proxy Server**
 ```bash
