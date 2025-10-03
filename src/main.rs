@@ -131,20 +131,45 @@ async fn check_and_update(skip_confirm: bool) -> Result<(), Box<dyn std::error::
 
     info!("Latest version available: {}", latest_version);
 
-    // Compare versions
-    let current = semver::Version::parse(VERSION)?;
-    let latest = semver::Version::parse(latest_version)?;
-
-    if current >= latest {
+    // Check if versions are exactly the same
+    if VERSION == latest_version {
         info!("You are already running the latest version!");
         return Ok(());
     }
 
-    info!("New version available: {} -> {}", VERSION, latest_version);
+    // Try to parse and compare versions using semver
+    let needs_update = match (semver::Version::parse(VERSION), semver::Version::parse(latest_version)) {
+        (Ok(current), Ok(latest)) => {
+            if latest > current {
+                // Clear case: newer version available
+                true
+            } else if current > latest {
+                // Current version is newer (unlikely, but possible during development)
+                false
+            } else {
+                // Versions are semver-equal but strings differ (e.g., 0.0.8 vs 0.0.8-1)
+                // This happens with pre-release/build metadata differences
+                // Ask user if they want to update
+                true
+            }
+        }
+        _ => {
+            // Failed to parse one or both versions - version strings differ, so ask user
+            info!("Cannot compare versions using semver, will prompt user");
+            true
+        }
+    };
+
+    if !needs_update {
+        info!("Current version ({}) is newer than or equal to latest ({})", VERSION, latest_version);
+        return Ok(());
+    }
+
+    info!("Version difference detected: {} -> {}", VERSION, latest_version);
 
     // Confirm update if not skipped
     if !skip_confirm {
-        println!("\nA new version is available: {} -> {}", VERSION, latest_version);
+        println!("\nA different version is available: {} -> {}", VERSION, latest_version);
         println!("Do you want to update? (y/N): ");
 
         let mut input = String::new();
