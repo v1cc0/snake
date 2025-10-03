@@ -3,6 +3,9 @@
 .env
 Cargo.lock
 
+# Binary in project root (created by make build)
+/snake
+
 # VScode
 .vscode/*
 .vscode

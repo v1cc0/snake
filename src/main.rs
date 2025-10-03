@@ -506,7 +506,7 @@ async fn proxy_handler(
     } else {
         info!("cf-aig-authorization header not found");
     }
-    if let Some(auth) = headers.get("authorization") {
+    if let Some(_auth) = headers.get("authorization") {
         info!("Found authorization header");
     } else {
         info!("authorization header not found");

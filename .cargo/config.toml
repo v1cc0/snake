@@ -1,0 +1,3 @@
+[build]
+# Keep the default target directory
+target-dir = "target"
