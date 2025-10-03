@@ -297,12 +297,19 @@ async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✓ Test server started");
 
-    // Send test request
+    // Determine which model to use for testing
+    let test_model = env::var("OPENAI_TEST_MODEL")
+        .unwrap_or_else(|_| {
+            info!("OPENAI_TEST_MODEL not set, using default: gpt-5-mini");
+            "gpt-5-mini".to_string()
+        });
+
     println!("\n📤 Sending test request: \"Do you like snake?\"");
+    println!("  └─ Using model: {}", test_model);
 
     let test_url = format!("http://127.0.0.1:{}/v1/chat/completions", host_port);
     let test_payload = json!({
-        "model": "gpt-5-nano",
+        "model": test_model,
         "messages": [
             {"role": "user", "content": "Do you like snake?"}
         ]
