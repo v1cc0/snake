@@ -135,6 +135,27 @@ Note: GitHub token can also be set via `GITHUB_TOKEN` in `.env` file to avoid ra
 snake serve         # Or just: snake
 ```
 
+**Manage Systemd Service**
+```bash
+# Install and start as systemd service (requires sudo)
+sudo snake service start
+
+# Stop and remove systemd service
+sudo snake service stop
+
+# Check service status
+sudo systemctl status snake
+
+# View service logs
+sudo journalctl -u snake -f
+```
+
+The service will:
+- Start automatically on system boot
+- Restart automatically if it crashes (Restart=always)
+- Run as the current user (preserves .env access)
+- Use the current working directory (where .env is located)
+
 ### Making Requests
 
 The proxy exposes an OpenAI-compatible endpoint at `http://localhost:{HOST_PORT}/v1/chat/completions`.
@@ -220,19 +241,21 @@ Client (receives SSE stream)
 **Module Structure (v0.1.0+):**
 ```
 src/
-├── main.rs       140 lines  - CLI entry point and routing
+├── main.rs       ~160 lines - CLI entry point and routing
 ├── config.rs      44 lines  - Configuration management
 ├── update.rs     140 lines  - Self-update functionality
-├── test.rs       241 lines  - Configuration testing
+├── test.rs       265 lines  - Multi-provider testing
 ├── proxy.rs      180 lines  - Request proxy handler
-└── stream.rs     145 lines  - SSE streaming conversion
+├── stream.rs     145 lines  - SSE streaming conversion
+└── service.rs    180 lines  - Systemd service management
 ```
 
 **Key Components:**
 - **Request Handler** (proxy.rs): Filters hop-by-hop headers, modifies body
 - **SSE Converter** (stream.rs): Splits complete response into word-by-word chunks
 - **Update Manager** (update.rs): GitHub release integration with semver comparison
-- **Config Validator** (test.rs): `.env` file validation and test request
+- **Multi-Provider Tester** (test.rs): Validates configuration and tests all providers
+- **Service Manager** (service.rs): Systemd service installation and management
 
 ## Logging
 

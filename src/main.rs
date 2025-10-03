@@ -1,5 +1,6 @@
 mod config;
 mod proxy;
+mod service;
 mod stream;
 mod test;
 mod update;
@@ -45,6 +46,19 @@ enum Commands {
     Serve,
     /// Test the proxy configuration and connection
     Test,
+    /// Manage systemd service
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ServiceAction {
+    /// Install and start the systemd service
+    Start,
+    /// Stop and uninstall the systemd service
+    Stop,
 }
 
 #[tokio::main]
@@ -76,6 +90,18 @@ async fn main() {
             if let Err(e) = run_test().await {
                 error!("Test failed: {}", e);
                 eprintln!("\n❌ Test failed: {}", e);
+                std::process::exit(1);
+            }
+            return;
+        }
+        Some(Commands::Service { action }) => {
+            let result = match action {
+                ServiceAction::Start => service::install_service(),
+                ServiceAction::Stop => service::uninstall_service(),
+            };
+            if let Err(e) = result {
+                error!("Service command failed: {}", e);
+                eprintln!("\n❌ Service command failed: {}", e);
                 std::process::exit(1);
             }
             return;
