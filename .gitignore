@@ -1,4 +1,5 @@
 /target
+/release
 .env
 Cargo.lock
 
