@@ -474,7 +474,7 @@ async fn main() {
         "Cloudflare Base AI Gateway URL: {}",
         config.cf_base_gateway_url
     );
-    info!("OpenAI Compatibility Path: {}", config.openai_compat_path);
+    info!("Local endpoint: http://{}/v1/chat/completions", config.listen_addr);
 
     // Create a single, shared reqwest client for connection pooling and performance.
     let client = Client::new();
