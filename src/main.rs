@@ -5,6 +5,7 @@ use axum::{
     http::{Request, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use clap::{Parser, Subcommand};
 use http_body_util::BodyExt;
 use reqwest::Client;
 use serde_json::{Value, json};
@@ -13,6 +14,32 @@ use std::net::SocketAddr;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{Level, error, info};
 use tracing_subscriber::FmtSubscriber;
+
+// --- CLI Structure ---
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const REPO_OWNER: &str = "v1cc0";
+const REPO_NAME: &str = "snake";
+
+#[derive(Parser)]
+#[command(name = "snake")]
+#[command(version = VERSION)]
+#[command(about = "Cloudflare AI Gateway Proxy", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Check for updates and upgrade to the latest version
+    Update {
+        /// Skip confirmation prompt and update directly
+        #[arg(short, long)]
+        yes: bool,
+    },
+    /// Start the proxy server (default if no command specified)
+    Serve,
+}
 
 // --- Custom Error Type ---
 enum ProxyError {
@@ -84,6 +111,66 @@ struct AppState {
     config: Config,
 }
 
+// --- Update Functionality ---
+async fn check_and_update(skip_confirm: bool) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Current version: {}", VERSION);
+    info!("Checking for updates from GitHub repository: {}/{}", REPO_OWNER, REPO_NAME);
+
+    let status = self_update::backends::github::Update::configure()
+        .repo_owner(REPO_OWNER)
+        .repo_name(REPO_NAME)
+        .bin_name("snake")
+        .show_download_progress(true)
+        .current_version(VERSION)
+        .build()?;
+
+    let latest_release = status.get_latest_release()?;
+    let latest_version = latest_release.version.trim_start_matches('v');
+
+    info!("Latest version available: {}", latest_version);
+
+    // Compare versions
+    let current = semver::Version::parse(VERSION)?;
+    let latest = semver::Version::parse(latest_version)?;
+
+    if current >= latest {
+        info!("You are already running the latest version!");
+        return Ok(());
+    }
+
+    info!("New version available: {} -> {}", VERSION, latest_version);
+
+    // Confirm update if not skipped
+    if !skip_confirm {
+        println!("\nA new version is available: {} -> {}", VERSION, latest_version);
+        println!("Do you want to update? (y/N): ");
+
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+
+        if !input.trim().eq_ignore_ascii_case("y") {
+            info!("Update cancelled by user");
+            return Ok(());
+        }
+    }
+
+    info!("Downloading and installing update...");
+    let status = self_update::backends::github::Update::configure()
+        .repo_owner(REPO_OWNER)
+        .repo_name(REPO_NAME)
+        .bin_name("snake")
+        .show_download_progress(true)
+        .current_version(VERSION)
+        .build()?
+        .update()?;
+
+    info!("Successfully updated to version: {}", status.version());
+    println!("\n✓ Update successful! New version: {}", status.version());
+    println!("Please restart the application to use the new version.");
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     // Initialize tracing (for logging)
@@ -93,6 +180,24 @@ async fn main() {
     if tracing::subscriber::set_global_default(subscriber).is_err() {
         eprintln!("setting default subscriber failed");
         return;
+    }
+
+    // Parse CLI arguments
+    let cli = Cli::parse();
+
+    // Handle commands
+    match cli.command {
+        Some(Commands::Update { yes }) => {
+            if let Err(e) = check_and_update(yes).await {
+                error!("Update failed: {}", e);
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+            return;
+        }
+        Some(Commands::Serve) | None => {
+            // Continue to start the server (default behavior)
+        }
     }
 
     // Load configuration
