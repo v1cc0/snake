@@ -42,9 +42,30 @@ HOST_PORT=38388
 ACCOUNT_ID=your_cloudflare_account_id
 GATEWAY_ID=your_gateway_id
 CF_AIG_TOKEN=your_cloudflare_ai_gateway_token
-PROVIDER_URL=https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
+
+# OpenAI Configuration
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_TEST_MODEL=openai/gpt-5-2025-08-07
+
+# Anthropic Configuration (optional)
+ANTHROPIC_API_KEY=your_anthropic_api_key
+ANTHROPIC_TEST_MODEL=anthropic/claude-3-5-sonnet-20241022
+
+# Google AI Studio Configuration (optional)
+GOOGLEAISTUDIO_API_KEY=your_google_api_key
+GOOGLEAISTUDIO_TEST_MODEL=google-ai-studio/gemini-2.5-flash
+
+# Groq Configuration (optional)
+GROQ_API_KEY=your_groq_api_key
+GROQ_TEST_MODEL=groq/openai/gpt-oss-120b
+
+# Mistral Configuration (optional)
+MISTRAL_API_KEY=your_mistral_api_key
+MISTRAL_TEST_MODEL=mistral/mistral-large-latest
+
+# XAI Configuration (optional)
+XAI_API_KEY=your_xai_api_key
+XAI_TEST_MODEL=xai/grok-beta
 ```
 
 **Required Variables:**
@@ -55,8 +76,14 @@ OPENAI_TEST_MODEL=openai/gpt-5-2025-08-07
 
 **Optional Variables:**
 - `HOST_PORT`: Port to listen on (default: 3000)
-- `OPENAI_TEST_MODEL`: Model for configuration testing (default: openai/gpt-5-2025-08-07, must use `provider/model` format)
 - `GITHUB_TOKEN`: GitHub personal access token for updates (avoids rate limiting)
+- Test model variables (for multi-provider testing):
+  - `OPENAI_TEST_MODEL`: OpenAI test model (default: openai/gpt-5-2025-08-07)
+  - `ANTHROPIC_TEST_MODEL`: Anthropic test model
+  - `GOOGLEAISTUDIO_TEST_MODEL`: Google AI Studio test model
+  - `GROQ_TEST_MODEL`: Groq test model
+  - `MISTRAL_TEST_MODEL`: Mistral test model
+  - `XAI_TEST_MODEL`: XAI test model
 
 ## Usage
 
@@ -66,7 +93,21 @@ OPENAI_TEST_MODEL=openai/gpt-5-2025-08-07
 ```bash
 snake test
 ```
-Validates your `.env` configuration and sends a test request.
+Validates your `.env` configuration and tests all configured providers.
+
+The test command will:
+- Validate `.env` file existence and required configuration
+- Test all providers that have both API key and test model configured
+- Display individual test results for each provider
+- Show a summary of passed/failed tests
+
+Supported test model environment variables:
+- `OPENAI_TEST_MODEL` with `OPENAI_API_KEY`
+- `ANTHROPIC_TEST_MODEL` with `ANTHROPIC_API_KEY`
+- `GOOGLEAISTUDIO_TEST_MODEL` with `GOOGLEAISTUDIO_API_KEY`
+- `GROQ_TEST_MODEL` with `GROQ_API_KEY`
+- `MISTRAL_TEST_MODEL` with `MISTRAL_API_KEY`
+- `XAI_TEST_MODEL` with `XAI_API_KEY`
 
 **Update to Latest Version**
 ```bash
