@@ -288,7 +288,7 @@ async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
 
     let test_url = format!("http://127.0.0.1:{}/v1/chat/completions", host_port);
     let test_payload = json!({
-        "model": "gpt-3.5-turbo",
+        "model": "gpt-5-mini",
         "messages": [
             {"role": "user", "content": "Do you like snake?"}
         ],
