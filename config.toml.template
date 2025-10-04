@@ -1,0 +1,63 @@
+# Snake Proxy Configuration Template
+# Copy this file to config.toml and fill in your actual values
+
+host_port = 3000
+
+# Cloudflare AI Gateway configurations (rotated in round-robin)
+# Add multiple gateways to distribute load
+[[gateways]]
+account_id = "your-cloudflare-account-id-1"
+gateway_id = "your-gateway-id"  # e.g., "free" or custom name
+token = "your-gateway-token-1"
+
+[[gateways]]
+account_id = "your-cloudflare-account-id-2"
+gateway_id = "your-gateway-id"
+token = "your-gateway-token-2"
+
+[[gateways]]
+account_id = "your-cloudflare-account-id-3"
+gateway_id = "your-gateway-id"
+token = "your-gateway-token-3"
+
+# Provider API Keys (rotated per provider in round-robin)
+# Configure multiple keys per provider for better rate limit handling
+
+[providers.openai]
+api_keys = [
+  "sk-proj-your-openai-api-key-1",
+  # Add more keys for rotation:
+  # "sk-proj-your-openai-api-key-2",
+]
+test_model = "openai/gpt-4o-mini"
+
+[providers.google-ai-studio]
+api_keys = [
+  "AIzaSy-your-google-api-key-1",
+  "AIzaSy-your-google-api-key-2",
+  # Add more keys for rotation
+]
+test_model = "google-ai-studio/gemini-2.0-flash-exp"
+
+[providers.groq]
+api_keys = [
+  "gsk_your-groq-api-key-1",
+  "gsk_your-groq-api-key-2",
+]
+test_model = "groq/llama-3.3-70b-versatile"
+
+[providers.mistral]
+api_keys = ["your-mistral-api-key"]
+test_model = "mistral/mistral-large-latest"
+
+[providers.cohere]
+api_keys = ["your-cohere-api-key"]
+test_model = "cohere/command-r-plus-08-2024"
+
+[providers.anthropic]
+api_keys = ["sk-ant-your-anthropic-api-key"]
+test_model = "anthropic/claude-3-5-sonnet-20241022"
+
+[providers.xai]
+api_keys = ["xai-your-xai-api-key"]
+test_model = "xai/grok-beta"

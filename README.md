@@ -4,10 +4,13 @@ A lightweight, high-performance HTTP proxy that forwards OpenAI-compatible reque
 
 ## Features
 - **OpenAI-Compatible API**: Drop-in replacement for OpenAI endpoints
+- **Multi-Gateway Load Balancing**: Round-robin rotation across multiple Cloudflare AI Gateways
+- **Multi-Key Rotation**: Automatic API key rotation per provider for rate limit handling
 - **SSE Streaming**: Simulates word-by-word streaming from non-stream Cloudflare responses
+- **Advanced Testing**: Test all providers, gateways, or specific provider keys
 - **Auto-Update**: Built-in self-update from GitHub releases
-- **Configuration Test**: Validate setup before deployment
-- **Header Management**: Proper HTTP header filtering and forwarding
+- **Configuration Management**: TOML-based config with validation
+- **Systemd Integration**: Service management with auto-restart
 - **Structured Logging**: Comprehensive tracing via `tracing` crate
 
 ## Prerequisites
@@ -43,60 +46,60 @@ make build  # Binary will be copied to ./snake
 
 ## Configuration
 
-Create a `.env` file in your working directory:
+Create a `config.toml` file by copying the template:
 
-```env
-HOST_PORT=38388
-ACCOUNT_ID=your_cloudflare_account_id
-GATEWAY_ID=your_gateway_id
-CF_AIG_TOKEN=your_cloudflare_ai_gateway_token
-
-# OpenAI Configuration
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_TEST_MODEL=openai/gpt-5-2025-08-07
-
-# Anthropic Configuration (optional)
-ANTHROPIC_API_KEY=your_anthropic_api_key
-ANTHROPIC_TEST_MODEL=anthropic/claude-3-5-sonnet-20241022
-
-# Google AI Studio Configuration (optional)
-GOOGLEAISTUDIO_API_KEY=your_google_api_key
-GOOGLEAISTUDIO_TEST_MODEL=google-ai-studio/gemini-2.5-flash
-
-# Groq Configuration (optional)
-GROQ_API_KEY=your_groq_api_key
-GROQ_TEST_MODEL=groq/openai/gpt-oss-120b
-
-# Mistral Configuration (optional)
-MISTRAL_API_KEY=your_mistral_api_key
-MISTRAL_TEST_MODEL=mistral/mistral-large-latest
-
-# Cohere Configuration (optional)
-COHERE_API_KEY=your_cohere_api_key
-COHERE_TEST_MODEL=cohere/command-a-reasoning-08-2025
-
-# XAI Configuration (optional)
-XAI_API_KEY=your_xai_api_key
-XAI_TEST_MODEL=xai/grok-beta
+```bash
+cp config.toml.template config.toml
+# Edit config.toml with your credentials
 ```
 
-**Required Variables:**
-- `ACCOUNT_ID`: Your Cloudflare account ID
-- `GATEWAY_ID`: Your AI Gateway ID
-- `CF_AIG_TOKEN`: Cloudflare AI Gateway authentication token
-- At least one provider API key (e.g., `OPENAI_API_KEY`)
+**Configuration Structure:**
 
-**Optional Variables:**
-- `HOST_PORT`: Port to listen on (default: 3000)
-- `GITHUB_TOKEN`: GitHub personal access token for updates (avoids rate limiting)
-- Test model variables (for multi-provider testing):
-  - `OPENAI_TEST_MODEL`: OpenAI test model (default: openai/gpt-5-2025-08-07)
-  - `ANTHROPIC_TEST_MODEL`: Anthropic test model
-  - `GOOGLEAISTUDIO_TEST_MODEL`: Google AI Studio test model
-  - `GROQ_TEST_MODEL`: Groq test model
-  - `MISTRAL_TEST_MODEL`: Mistral test model
-  - `COHERE_TEST_MODEL`: Cohere test model
-  - `XAI_TEST_MODEL`: XAI test model
+```toml
+# Server settings
+host_port = 3000
+
+# Cloudflare AI Gateway configurations (rotated in round-robin)
+[[gateways]]
+account_id = "your-cloudflare-account-id-1"
+gateway_id = "your-gateway-id"
+token = "your-gateway-token-1"
+
+[[gateways]]
+account_id = "your-cloudflare-account-id-2"
+gateway_id = "your-gateway-id"
+token = "your-gateway-token-2"
+
+# Provider API Keys (rotated per provider in round-robin)
+[providers.openai]
+api_keys = ["sk-proj-your-openai-api-key"]
+test_model = "openai/gpt-4o-mini"
+
+[providers.google-ai-studio]
+api_keys = [
+  "AIzaSy-your-google-api-key-1",
+  "AIzaSy-your-google-api-key-2"  # Multiple keys for rotation
+]
+test_model = "google-ai-studio/gemini-2.0-flash-exp"
+
+[providers.anthropic]
+api_keys = ["sk-ant-your-anthropic-api-key"]
+test_model = "anthropic/claude-3-5-sonnet-20241022"
+
+# Other providers: groq, mistral, cohere, xai
+```
+
+**Required Configuration:**
+- At least one gateway in `[[gateways]]` array
+- At least one provider with `api_keys` array
+
+**Multi-Gateway Load Balancing:**
+- Add multiple `[[gateways]]` entries to distribute requests across different Cloudflare accounts/gateways
+- Requests are automatically rotated in round-robin fashion
+
+**Multi-Key Rotation:**
+- Configure multiple keys per provider in the `api_keys` array
+- Keys are automatically rotated per provider to handle rate limits
 
 ## Usage
 
@@ -104,24 +107,44 @@ XAI_TEST_MODEL=xai/grok-beta
 
 **Test Configuration**
 ```bash
+# Test all configured providers (default)
 snake test
+snake test all
+
+# Test gateway rotation (2x full rotations)
+snake test gateway
+
+# Test specific provider with ALL configured API keys
+snake test provider openai
+snake test provider google-ai-studio
 ```
-Validates your `.env` configuration and tests all configured providers.
 
-The test command will:
-- Validate `.env` file existence and required configuration
-- Test all providers that have both API key and test model configured
-- Display individual test results for each provider
-- Show a summary of passed/failed tests
+The test command supports multiple modes:
+- **all** (default): Tests all providers with configured API keys and test models
+- **gateway**: Tests gateway round-robin rotation (makes 2x full rotations)
+- **provider <name>**: Tests ALL API keys for a specific provider (openai, google-ai-studio, anthropic, groq, mistral, cohere, xai)
 
-Supported test model environment variables:
-- `OPENAI_TEST_MODEL` with `OPENAI_API_KEY`
-- `ANTHROPIC_TEST_MODEL` with `ANTHROPIC_API_KEY`
-- `GOOGLEAISTUDIO_TEST_MODEL` with `GOOGLEAISTUDIO_API_KEY`
-- `GROQ_TEST_MODEL` with `GROQ_API_KEY`
-- `MISTRAL_TEST_MODEL` with `MISTRAL_API_KEY`
-- `COHERE_TEST_MODEL` with `COHERE_API_KEY`
-- `XAI_TEST_MODEL` with `XAI_API_KEY`
+Each test validates:
+- Configuration file syntax and requirements
+- Network connectivity to Cloudflare AI Gateway
+- API key validity and provider response
+- Individual key masking for security
+
+**Validate Configuration**
+```bash
+# Check default config.toml
+snake config check
+
+# Check custom config file
+snake config check /path/to/config.toml
+```
+
+**Use Custom Config File**
+```bash
+# Global --config flag works with all commands
+snake --config /etc/snake/prod.toml serve
+snake --config /etc/snake/prod.toml test all
+```
 
 **Update to Latest Version**
 ```bash
@@ -137,7 +160,7 @@ The update command will:
 - Restart the service with the new version (if running)
 - If service exists but not running, prompt you to start it manually
 
-Note: GitHub token can also be set via `GITHUB_TOKEN` in `.env` file to avoid rate limiting.
+Note: Store GitHub token in `config.toml` or set `GITHUB_TOKEN` environment variable to avoid rate limiting.
 
 **Start Proxy Server**
 ```bash
@@ -249,20 +272,21 @@ Client (receives SSE stream)
 **Module Structure (v0.1.0+):**
 ```
 src/
-├── main.rs       ~160 lines - CLI entry point and routing
-├── config.rs      44 lines  - Configuration management
-├── update.rs     140 lines  - Self-update functionality
-├── test.rs       265 lines  - Multi-provider testing
-├── proxy.rs      180 lines  - Request proxy handler
-├── stream.rs     145 lines  - SSE streaming conversion
-└── service.rs    180 lines  - Systemd service management
+├── main.rs       312 lines - CLI entry, routing, config check
+├── config.rs     136 lines - TOML config + round-robin rotation
+├── update.rs     198 lines - Self-update + service restart
+├── test.rs       474 lines - Advanced multi-mode testing
+├── proxy.rs      205 lines - Request forwarding + key rotation
+├── stream.rs     145 lines - SSE conversion
+└── service.rs    203 lines - Systemd integration
 ```
 
 **Key Components:**
-- **Request Handler** (proxy.rs): Filters hop-by-hop headers, modifies body
+- **Config Manager** (config.rs): TOML parsing, multi-gateway and multi-key round-robin rotation
+- **Request Handler** (proxy.rs): Filters headers, provider detection, automatic API key rotation
 - **SSE Converter** (stream.rs): Splits complete response into word-by-word chunks
-- **Update Manager** (update.rs): GitHub release integration with semver comparison
-- **Multi-Provider Tester** (test.rs): Validates configuration and tests all providers
+- **Update Manager** (update.rs): GitHub release integration with automatic service restart
+- **Multi-Mode Tester** (test.rs): Tests all providers, gateways, or specific provider keys
 - **Service Manager** (service.rs): Systemd service installation and management
 
 ## Logging

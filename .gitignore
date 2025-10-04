@@ -3,6 +3,7 @@
 .cargo/
 .env
 .env.original
+config.toml
 Cargo.lock
 
 # Binary in project root (created by make build)
