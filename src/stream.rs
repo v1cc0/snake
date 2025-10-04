@@ -5,42 +5,23 @@ use axum::{
 };
 use serde_json::{Value, json};
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{info, error};
 
 /// Converts a complete response to SSE (Server-Sent Events) stream format
 pub fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -> Response {
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(100);
 
     tokio::spawn(async move {
-        // Log response bytes info
-        info!("SSE: Response bytes length: {}", response_bytes.len());
-        info!("SSE: Response bytes (hex, first 100): {:02x?}", &response_bytes[..response_bytes.len().min(100)]);
-
-        // Try UTF-8 conversion
-        match String::from_utf8(response_bytes.to_vec()) {
-            Ok(text) => {
-                info!("SSE: UTF-8 conversion successful, text preview (first 500 chars): {}", &text[..text.len().min(500)]);
-            }
-            Err(e) => {
-                error!("SSE: UTF-8 conversion failed: {}", e);
-            }
-        }
-
         // Parse the response JSON
         if let Ok(json_response) = serde_json::from_slice::<Value>(&response_bytes) {
-            info!("SSE: Successfully parsed JSON response");
             // Check if it's a chat completion response
             if let Some(choices) = json_response.get("choices").and_then(|v| v.as_array()) {
-                info!("SSE: Found choices array with {} items", choices.len());
                 if let Some(first_choice) = choices.first() {
-                    info!("SSE: Processing first choice");
                     // Extract the full content from the message
                     if let Some(content) = first_choice
                         .get("message")
                         .and_then(|m| m.get("content"))
                         .and_then(|c| c.as_str())
                     {
-                        info!("SSE: Extracted content, length: {} chars", content.len());
                         // Get metadata
                         let created = json_response.get("created").cloned().unwrap_or(json!(0));
                         let id = json_response.get("id").cloned().unwrap_or(json!("unknown"));
@@ -51,7 +32,6 @@ pub fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -
 
                         // Split content into words for streaming simulation
                         let words: Vec<&str> = content.split_whitespace().collect();
-                        info!("SSE: Split content into {} words", words.len());
 
                         // Send chunks with delays to simulate streaming
                         for (i, word) in words.iter().enumerate() {
@@ -110,9 +90,7 @@ pub fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -
                             serde_json::to_string(&final_chunk).unwrap_or_default()
                         );
                         let _ = tx.send(Ok(sse_data)).await;
-                        info!("SSE: Sent final chunk with finish_reason");
                     } else {
-                        error!("SSE: No content found in message field");
                         // No content found, send the choice as-is
                         let chunk = json!({
                             "choices": [first_choice],
@@ -127,11 +105,8 @@ pub fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -
                         );
                         let _ = tx.send(Ok(sse_data)).await;
                     }
-                } else {
-                    error!("SSE: Choices array is empty");
                 }
             } else {
-                error!("SSE: No choices field found in response");
                 // Not a standard chat completion, send the whole response as one chunk
                 let sse_data = format!(
                     "data: {}\n\n",
@@ -139,18 +114,15 @@ pub fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -
                 );
                 let _ = tx.send(Ok(sse_data)).await;
             }
-        } else if let Err(e) = serde_json::from_slice::<Value>(&response_bytes) {
-            error!("SSE: Failed to parse response as JSON: {}", e);
+        } else {
             // Failed to parse JSON, send raw data
             if let Ok(text) = String::from_utf8(response_bytes.to_vec()) {
-                error!("SSE: Response text: {}", text);
                 let sse_data = format!("data: {}\n\n", text);
                 let _ = tx.send(Ok(sse_data)).await;
             }
         }
 
         // Send the [DONE] marker
-        info!("SSE: Sending [DONE] marker");
         let _ = tx.send(Ok("data: [DONE]\n\n".to_string())).await;
     });
 
