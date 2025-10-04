@@ -25,7 +25,7 @@ const REPO_NAME: &str = "snake";
 #[derive(Parser)]
 #[command(name = "snake")]
 #[command(version = VERSION)]
-#[command(about = "Cloudflare AI Gateway Proxy", long_about = None)]
+#[command(about = "Snake - the API proxy", long_about = None)]
 struct Cli {
     /// Path to config file (default: config.toml)
     #[arg(short, long, global = true, default_value = "config.toml")]
@@ -105,7 +105,7 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber)
         .expect("Failed to set tracing subscriber");
 
-    info!("Starting Cloudflare AI Gateway Proxy v{}", VERSION);
+    info!("Starting Snake - the API proxy v{}", VERSION);
 
     // Parse CLI arguments
     let cli = Cli::parse();

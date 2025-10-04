@@ -44,7 +44,7 @@ pub fn install_service() -> Result<(), Box<dyn std::error::Error>> {
     // Create systemd service file content
     let service_content = format!(
         r#"[Unit]
-Description=Snake - Cloudflare AI Gateway Proxy
+Description=Snake - the API proxy
 After=network.target
 
 [Service]

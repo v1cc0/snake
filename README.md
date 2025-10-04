@@ -1,4 +1,4 @@
-# Snake - Cloudflare AI Gateway Proxy
+# Snake - the API proxy
 
 A lightweight, high-performance HTTP proxy that forwards OpenAI-compatible requests to Cloudflare's AI Gateway. Built with [Axum](https://github.com/tokio-rs/axum), [Tokio](https://tokio.rs/), and [Reqwest](https://github.com/seanmonstar/reqwest).
 
