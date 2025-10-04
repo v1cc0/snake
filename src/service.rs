@@ -40,7 +40,7 @@ pub fn install_service() -> Result<(), Box<dyn std::error::Error>> {
     // Note: User=root is required to bind to privileged ports (< 1024) like HTTPS 443
     let service_content = format!(
         r#"[Unit]
-Description=Snake - the API proxy
+Description=Snake - the API proxy (HTTPS)
 After=network.target
 
 [Service]
