@@ -30,18 +30,14 @@ pub fn install_service() -> Result<(), Box<dyn std::error::Error>> {
         .to_str()
         .ok_or("Failed to get working directory")?;
 
-    // Get the actual user (not root when using sudo)
-    let actual_user = env::var("SUDO_USER").unwrap_or_else(|_| {
-        env::var("USER").unwrap_or_else(|_| "root".to_string())
-    });
-
     println!("📋 Service Configuration:");
     println!("  ├─ Binary: {}", binary_path_str);
     println!("  ├─ Working Directory: {}", working_dir_str);
-    println!("  ├─ User: {}", actual_user);
+    println!("  ├─ User: root (required for HTTPS port 443)");
     println!("  └─ Service File: {}", SERVICE_PATH);
 
     // Create systemd service file content
+    // Note: User=root is required to bind to privileged ports (< 1024) like HTTPS 443
     let service_content = format!(
         r#"[Unit]
 Description=Snake - the API proxy
@@ -49,7 +45,7 @@ After=network.target
 
 [Service]
 Type=simple
-User={}
+User=root
 WorkingDirectory={}
 ExecStart={} serve
 Restart=always
@@ -60,7 +56,7 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 "#,
-        actual_user, working_dir_str, binary_path_str
+        working_dir_str, binary_path_str
     );
 
     // Write service file
