@@ -98,6 +98,12 @@ enum ServiceAction {
 
 #[tokio::main]
 async fn main() {
+    // Install ring crypto provider for rustls BEFORE any TLS operations
+    // This prevents the "Could not automatically determine CryptoProvider" panic
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     // Initialize tracing (for logging)
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
