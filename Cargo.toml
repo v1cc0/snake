@@ -23,7 +23,7 @@ self_update = { version = "0.42", features = [
   "compression-flate2",
 ] }
 semver = "1.0.27"
-rustls = "0.23.32"
+rustls = { version = "0.23.32", default-features = false, features = ["ring"] }
 tokio-rustls = "0.26.4"
 rustls-pemfile = "2.2.0"
 axum-server = { version = "0.7.2", features = ["tls-rustls"] }
