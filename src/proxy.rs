@@ -75,8 +75,17 @@ pub async fn proxy_handler(
     let body_bytes = full_body.to_bytes();
 
     // Try to parse the body as JSON and check for stream parameter
+    let mut provider_name: Option<String> = None;
     let (modified_body, was_stream_request) =
         if let Ok(mut json_body) = serde_json::from_slice::<Value>(&body_bytes) {
+            // Extract provider name from model field (format: "provider/model_name")
+            if let Some(model) = json_body.get("model").and_then(|v| v.as_str()) {
+                if let Some(provider) = model.split('/').next() {
+                    provider_name = Some(provider.to_string());
+                    info!("Detected provider from model: {}", provider);
+                }
+            }
+
             let was_stream = json_body
                 .get("stream")
                 .and_then(|v| v.as_bool())
@@ -119,6 +128,22 @@ pub async fn proxy_handler(
             ProxyError::BadRequest(format!("Invalid gateway token format: {}", e))
         })?,
     );
+
+    // Use round-robin API key if provider is detected and multiple keys are configured
+    if let Some(provider) = provider_name {
+        if let Some(api_key) = state.config.next_api_key(&provider) {
+            info!("Using round-robin API key for provider: {}", provider);
+            let auth_value = format!("Bearer {}", api_key);
+            filtered_headers.insert(
+                "authorization",
+                auth_value.parse().map_err(|e| {
+                    ProxyError::BadRequest(format!("Invalid API key format: {}", e))
+                })?,
+            );
+        } else {
+            info!("No API key configured for provider: {}, using client's key", provider);
+        }
+    }
 
     info!("Sending request to Cloudflare...");
     if was_stream_request {

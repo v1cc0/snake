@@ -3,7 +3,6 @@ use crate::proxy::{AppState, proxy_handler};
 use axum::Router;
 use reqwest::Client;
 use serde_json::{Value, json};
-use std::env;
 use std::net::SocketAddr;
 use tracing::info;
 
