@@ -132,23 +132,39 @@ pub async fn run_test(config_path: &str, mode: TestMode) -> Result<(), Box<dyn s
                     return Err(format!("Provider '{}' has no API keys or test model configured", target_provider).into());
                 }
 
-                let api_key = &provider_config.api_keys[0];
                 let test_model = &provider_config.test_model;
+                let num_keys = provider_config.api_keys.len();
 
-                tests_run = 1;
-                let result = test_single_provider(
-                    target_provider,
-                    test_model,
-                    api_key,
-                    &test_client,
-                    &test_url
-                ).await;
+                println!("Found {} API key(s) for provider '{}'\n", num_keys, target_provider);
 
-                match result {
-                    Ok(_) => tests_passed = 1,
-                    Err(e) => {
-                        tests_failed = 1;
-                        println!("❌ Error: {}", e);
+                // Test each API key
+                for (key_idx, api_key) in provider_config.api_keys.iter().enumerate() {
+                    tests_run += 1;
+
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    println!("🔑 Testing API Key {}/{}", key_idx + 1, num_keys);
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+                    let result = test_single_provider_with_key(
+                        target_provider,
+                        test_model,
+                        api_key,
+                        key_idx + 1,
+                        &test_client,
+                        &test_url
+                    ).await;
+
+                    match result {
+                        Ok(_) => tests_passed += 1,
+                        Err(e) => {
+                            tests_failed += 1;
+                            println!("❌ Error: {}", e);
+                        }
+                    }
+
+                    // Small delay between key tests
+                    if key_idx < num_keys - 1 {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
                     }
                 }
             } else {
@@ -208,6 +224,83 @@ pub async fn run_test(config_path: &str, mode: TestMode) -> Result<(), Box<dyn s
 
     server_handle.abort();
     Ok(())
+}
+
+/// Test a single provider with a specific API key (shows key index)
+async fn test_single_provider_with_key(
+    provider_name: &str,
+    test_model: &str,
+    api_key: &str,
+    key_index: usize,
+    test_client: &Client,
+    test_url: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("🧪 Testing {} ({}) with Key #{}", provider_name, test_model, key_index);
+    println!("   Key: {}...{}",
+        &api_key.chars().take(8).collect::<String>(),
+        &api_key.chars().rev().take(4).collect::<String>().chars().rev().collect::<String>()
+    );
+
+    let test_payload = json!({
+        "model": test_model,
+        "messages": [
+            {"role": "user", "content": "Say 'Hello from provider!' in one short sentence."}
+        ]
+    });
+
+    let request = test_client
+        .post(test_url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&test_payload);
+
+    match request.send().await {
+        Ok(response) => {
+            let status = response.status();
+
+            match response.text().await {
+                Ok(body) => {
+                    if status.is_success() {
+                        println!("✅ Status: {} OK", status.as_u16());
+
+                        // Try to extract and show the message content
+                        if let Ok(json_body) = serde_json::from_str::<Value>(&body) {
+                            if let Some(content) = json_body["choices"][0]["message"]["content"].as_str() {
+                                println!("📝 Response: {}", content);
+                            } else {
+                                println!("📄 Full response:\n{}", serde_json::to_string_pretty(&json_body)?);
+                            }
+                        } else {
+                            println!("📄 Response: {}", body);
+                        }
+                        println!();
+                        Ok(())
+                    } else {
+                        println!("❌ Status: {} {}", status.as_u16(), status.canonical_reason().unwrap_or("Unknown"));
+
+                        // Show error details
+                        if let Ok(json_body) = serde_json::from_str::<Value>(&body) {
+                            println!("📄 Error response:\n{}", serde_json::to_string_pretty(&json_body)?);
+                        } else {
+                            println!("📄 Error: {}", body);
+                        }
+                        println!();
+                        Err(format!("HTTP {}", status.as_u16()).into())
+                    }
+                }
+                Err(e) => {
+                    println!("❌ Failed to read response body: {}", e);
+                    println!();
+                    Err(e.into())
+                }
+            }
+        }
+        Err(e) => {
+            println!("❌ Request failed: {}", e);
+            println!();
+            Err(e.into())
+        }
+    }
 }
 
 /// Test a single provider
