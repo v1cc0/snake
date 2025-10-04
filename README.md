@@ -4,6 +4,7 @@ A lightweight, high-performance HTTP proxy that forwards OpenAI-compatible reque
 
 ## Features
 - **OpenAI-Compatible API**: Drop-in replacement for OpenAI endpoints
+- **Native HTTPS/TLS Support**: Built-in HTTPS server with rustls (no reverse proxy needed)
 - **Multi-Gateway Load Balancing**: Round-robin rotation across multiple Cloudflare AI Gateways
 - **Multi-Key Rotation**: Automatic API key rotation per provider for rate limit handling
 - **SSE Streaming**: Simulates word-by-word streaming from non-stream Cloudflare responses
@@ -59,6 +60,12 @@ cp config.toml.template config.toml
 # Server settings
 host_port = 3000
 
+# HTTPS Configuration (optional)
+# Set https_server = true to enable native HTTPS/TLS support
+https_server = false
+tls_cert_path = "cert.pem"
+tls_key_path = "key.pem"
+
 # Cloudflare AI Gateway configurations (rotated in round-robin)
 [[gateways]]
 account_id = "your-cloudflare-account-id-1"
@@ -92,6 +99,13 @@ test_model = "anthropic/claude-3-5-sonnet-20241022"
 **Required Configuration:**
 - At least one gateway in `[[gateways]]` array
 - At least one provider with `api_keys` array
+
+**HTTPS Configuration (Optional):**
+- Set `https_server = true` to enable native HTTPS/TLS
+- Provide paths to TLS certificate and private key files
+- Supports both PKCS8 and PKCS1 private key formats
+- HTTP/1.1 and HTTP/2 are enabled via ALPN
+- Default is HTTP mode (`https_server = false`)
 
 **Multi-Gateway Load Balancing:**
 - Add multiple `[[gateways]]` entries to distribute requests across different Cloudflare accounts/gateways
