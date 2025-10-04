@@ -12,9 +12,18 @@ pub fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(100);
 
     tokio::spawn(async move {
-        // Log the raw response for debugging
-        if let Ok(text) = String::from_utf8(response_bytes.to_vec()) {
-            info!("SSE: Raw response preview (first 500 chars): {}", &text[..text.len().min(500)]);
+        // Log response bytes info
+        info!("SSE: Response bytes length: {}", response_bytes.len());
+        info!("SSE: Response bytes (hex, first 100): {:02x?}", &response_bytes[..response_bytes.len().min(100)]);
+
+        // Try UTF-8 conversion
+        match String::from_utf8(response_bytes.to_vec()) {
+            Ok(text) => {
+                info!("SSE: UTF-8 conversion successful, text preview (first 500 chars): {}", &text[..text.len().min(500)]);
+            }
+            Err(e) => {
+                error!("SSE: UTF-8 conversion failed: {}", e);
+            }
         }
 
         // Parse the response JSON
