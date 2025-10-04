@@ -12,7 +12,7 @@ use proxy::{AppState, proxy_handler};
 use reqwest::Client;
 use std::env;
 use std::net::SocketAddr;
-use test::run_test;
+use test::{run_test, TestMode as TestModeEnum};
 use tracing::{Level, error, info};
 use tracing_subscriber::FmtSubscriber;
 use update::check_and_update;
@@ -27,6 +27,10 @@ const REPO_NAME: &str = "snake";
 #[command(version = VERSION)]
 #[command(about = "Cloudflare AI Gateway Proxy", long_about = None)]
 struct Cli {
+    /// Path to config file (default: config.toml)
+    #[arg(short, long, global = true, default_value = "config.toml")]
+    config: String,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -45,11 +49,41 @@ enum Commands {
     /// Start the proxy server (default if no command specified)
     Serve,
     /// Test the proxy configuration and connection
-    Test,
+    Test {
+        #[command(subcommand)]
+        mode: Option<TestMode>,
+    },
+    /// Configuration management
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
     /// Manage systemd service
     Service {
         #[command(subcommand)]
         action: ServiceAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum TestMode {
+    /// Test all (gateways and providers)
+    All,
+    /// Test gateway rotation only
+    Gateway,
+    /// Test specific provider
+    Provider {
+        /// Provider name (e.g., openai, google-ai-studio, groq)
+        name: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Check if config file is valid and meets minimum requirements
+    Check {
+        /// Path to config file to check (overrides --config)
+        path: Option<String>,
     },
 }
 
@@ -86,11 +120,29 @@ async fn main() {
             }
             return;
         }
-        Some(Commands::Test) => {
-            if let Err(e) = run_test().await {
+        Some(Commands::Test { mode }) => {
+            let test_mode = match mode.unwrap_or(TestMode::All) {
+                TestMode::All => TestModeEnum::All,
+                TestMode::Gateway => TestModeEnum::Gateway,
+                TestMode::Provider { name } => TestModeEnum::Provider(name),
+            };
+            if let Err(e) = run_test(&cli.config, test_mode).await {
                 error!("Test failed: {}", e);
                 eprintln!("\n❌ Test failed: {}", e);
                 std::process::exit(1);
+            }
+            return;
+        }
+        Some(Commands::Config { action }) => {
+            match action {
+                ConfigAction::Check { path } => {
+                    let config_path = path.as_ref().unwrap_or(&cli.config);
+                    if let Err(e) = check_config(config_path) {
+                        error!("Config check failed: {}", e);
+                        eprintln!("\n❌ Config check failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
             return;
         }
@@ -111,8 +163,8 @@ async fn main() {
         }
     }
 
-    // Load configuration from config.toml
-    let config = match Config::from_toml("config.toml") {
+    // Load configuration from specified path
+    let config = match Config::from_toml(&cli.config) {
         Ok(cfg) => cfg,
         Err(e) => {
             error!("Configuration error: {}", e);
@@ -201,4 +253,60 @@ async fn main() {
     if let Err(e) = axum::serve(listener, app).await {
         error!("Server error: {}", e);
     }
+}
+
+/// Check if config file is valid and meets minimum requirements
+fn check_config(config_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Checking configuration file: {}", config_path);
+
+    // Check if file exists
+    let path = std::path::Path::new(config_path);
+    if !path.exists() {
+        return Err(format!("Config file not found: {}", config_path).into());
+    }
+
+    println!("✓ Config file exists: {}", config_path);
+
+    // Try to load config
+    let config = Config::from_toml(config_path)?;
+
+    // Validate minimum requirements
+    println!("\n📋 Configuration Summary:");
+    println!("  ├─ Host Port: {}", config.listen_addr.split(':').last().unwrap_or("unknown"));
+    println!("  ├─ Gateways: {}", config.gateways.len());
+
+    if config.gateways.is_empty() {
+        return Err("At least one gateway must be configured".into());
+    }
+
+    for (idx, gateway) in config.gateways.iter().enumerate() {
+        println!("  │   └─ Gateway {}: {}/{}",
+            idx + 1,
+            gateway.account_id.chars().take(8).collect::<String>() + "...",
+            gateway.gateway_id
+        );
+    }
+
+    // Count configured providers
+    let mut provider_count = 0;
+    println!("  └─ Providers:");
+    for (name, provider) in &config.providers {
+        if !provider.api_keys.is_empty() {
+            provider_count += 1;
+            println!("      ├─ {}: {} key(s)", name, provider.api_keys.len());
+        }
+    }
+
+    if provider_count == 0 {
+        println!("\n⚠️  Warning: No provider API keys configured");
+        println!("   The proxy will work but will use client-provided API keys only");
+    }
+
+    println!("\n✅ Configuration is valid and ready to use");
+    println!("\nMinimum requirements met:");
+    println!("  ✓ At least 1 gateway configured ({} found)", config.gateways.len());
+    println!("  ✓ Valid TOML syntax");
+    println!("  {} Provider API keys configured", provider_count);
+
+    Ok(())
 }
