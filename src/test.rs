@@ -11,95 +11,59 @@ use tracing::info;
 pub async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
     info!("Running proxy configuration test...");
 
-    // Check if .env file exists
-    let env_path = std::path::Path::new(".env");
-    if !env_path.exists() {
-        eprintln!("\n❌ Error: .env file not found!");
-        eprintln!("Please create a .env file based on .env.template");
-        return Err("Missing .env file".into());
+    // Check if config.toml file exists
+    let config_path = std::path::Path::new("config.toml");
+    if !config_path.exists() {
+        eprintln!("\n❌ Error: config.toml file not found!");
+        eprintln!("Please create a config.toml file in the project directory");
+        return Err("Missing config.toml file".into());
     }
 
-    println!("\n✓ .env file found");
+    println!("\n✓ config.toml file found");
 
-    // Load environment variables
-    dotenvy::dotenv().ok();
+    // Load config from TOML file
+    let config = Config::from_toml("config.toml")?;
 
-    // Read and display configuration
+    // Display configuration
     println!("\n📋 Current Configuration:");
-    println!(
-        "  ├─ HOST_PORT: {}",
-        env::var("HOST_PORT").unwrap_or_else(|_| "3000 (default)".to_string())
-    );
+    println!("  ├─ HOST_PORT: {}", config.listen_addr.split(':').last().unwrap_or("unknown"));
+    println!("  ├─ Gateways: {} configured", config.gateways.len());
 
-    let account_id = env::var("ACCOUNT_ID").unwrap_or_default();
-    let gateway_id = env::var("GATEWAY_ID").unwrap_or_default();
-
-    let account_id_display = if account_id.is_empty() {
-        "⚠️  NOT SET".to_string()
-    } else {
-        mask_string(&account_id)
-    };
-    let gateway_id_display = if gateway_id.is_empty() {
-        "⚠️  NOT SET".to_string()
-    } else {
-        gateway_id.clone()
-    };
-
-    println!("  ├─ ACCOUNT_ID: {}", account_id_display);
-    println!("  ├─ GATEWAY_ID: {}", gateway_id_display);
-
-    // Check CF_AIG_TOKEN
-    let cf_aig_token = env::var("CF_AIG_TOKEN").unwrap_or_default();
-    let cf_token_display = if cf_aig_token.is_empty() {
-        "⚠️  NOT SET".to_string()
-    } else {
-        mask_api_key(&cf_aig_token)
-    };
-    println!("  ├─ CF_AIG_TOKEN: {}", cf_token_display);
+    for (idx, gateway) in config.gateways.iter().enumerate() {
+        println!("  │   ├─ Gateway {}: account={}, gateway_id={}, token={}",
+            idx + 1,
+            mask_string(&gateway.account_id),
+            &gateway.gateway_id,
+            mask_api_key(&gateway.token)
+        );
+    }
 
     // Check provider API keys
     println!("  └─ Provider API Keys:");
     let mut has_api_key = false;
 
-    for (name, env_key) in [
-        ("OpenAI", "OPENAI_API_KEY"),
-        ("Anthropic", "ANTHROPIC_API_KEY"),
-        ("Google AI Studio", "GOOGLEAISTUDIO_API_KEY"),
-        ("Groq", "GROQ_API_KEY"),
-        ("Mistral", "MISTRAL_API_KEY"),
-        ("Cohere", "COHERE_API_KEY"),
-        ("XAI", "XAI_API_KEY"),
-    ] {
-        let key = env::var(env_key).unwrap_or_default();
-        if !key.is_empty() {
-            println!("      ├─ {}: {}", name, mask_api_key(&key));
+    for (provider_name, provider_config) in &config.providers {
+        if !provider_config.api_keys.is_empty() {
+            println!("      ├─ {}: {} key(s) configured",
+                provider_name,
+                provider_config.api_keys.len()
+            );
             has_api_key = true;
         } else {
-            println!("      ├─ {}: ⚠️  NOT SET", name);
+            println!("      ├─ {}: ⚠️  NOT SET", provider_name);
         }
-    }
-
-    // Validate required configuration
-    if account_id.is_empty() || gateway_id.is_empty() {
-        eprintln!("\n❌ Error: Missing required configuration!");
-        eprintln!("Please set ACCOUNT_ID and GATEWAY_ID in your .env file");
-        return Err("Missing required configuration".into());
     }
 
     if !has_api_key {
         eprintln!("\n⚠️  Warning: No provider API key configured!");
-        eprintln!(
-            "Please set at least one API key (e.g., OPENAI_API_KEY, CLAUDE_API_KEY) in your .env file"
-        );
+        eprintln!("Please configure at least one provider in config.toml");
         return Err("No API key configured".into());
     }
 
     println!("\n✓ Configuration validated");
-
-    // Load config for server
-    let config = Config::from_env()?;
-    let host_port = env::var("HOST_PORT").unwrap_or_else(|_| "3000".to_string());
-    let listen_addr = format!("127.0.0.1:{}", host_port);
+    // Extract port from listen_addr (format: "0.0.0.0:port")
+    let port = config.listen_addr.split(':').last().unwrap_or("3000");
+    let listen_addr = format!("127.0.0.1:{}", port);
 
     // Create HTTP client for testing
     let test_client = Client::builder()
@@ -135,19 +99,7 @@ pub async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✓ Test server started");
 
-    // Collect all providers with both API key and test model configured
-    let providers = vec![
-        ("OpenAI", "OPENAI_API_KEY", "OPENAI_TEST_MODEL"),
-        ("Anthropic", "ANTHROPIC_API_KEY", "ANTHROPIC_TEST_MODEL"),
-        ("Google AI Studio", "GOOGLEAISTUDIO_API_KEY", "GOOGLEAISTUDIO_TEST_MODEL"),
-        ("Groq", "GROQ_API_KEY", "GROQ_TEST_MODEL"),
-        ("Mistral", "MISTRAL_API_KEY", "MISTRAL_TEST_MODEL"),
-        ("Cohere", "COHERE_API_KEY", "COHERE_TEST_MODEL"),
-        ("XAI", "XAI_API_KEY", "XAI_TEST_MODEL"),
-    ];
-
-    let cf_aig_token = env::var("CF_AIG_TOKEN").unwrap_or_default();
-    let test_url = format!("http://127.0.0.1:{}/v1/chat/completions", host_port);
+    let test_url = format!("http://127.0.0.1:{}/v1/chat/completions", port);
 
     let mut tests_run = 0;
     let mut tests_passed = 0;
@@ -155,14 +107,14 @@ pub async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n📤 Running tests for all configured providers...\n");
 
-    for (provider_name, api_key_env, test_model_env) in providers {
-        let api_key = env::var(api_key_env).unwrap_or_default();
-        let test_model = env::var(test_model_env).unwrap_or_default();
-
-        // Skip if either API key or test model is not configured
-        if api_key.is_empty() || test_model.is_empty() {
+    for (provider_name, provider_config) in &config.providers {
+        // Skip if no API keys or no test model configured
+        if provider_config.api_keys.is_empty() || provider_config.test_model.is_empty() {
             continue;
         }
+
+        let api_key = &provider_config.api_keys[0]; // Use the first API key for testing
+        let test_model = &provider_config.test_model;
 
         tests_run += 1;
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -176,18 +128,11 @@ pub async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
             ]
         });
 
-        let mut request = test_client
+        let request = test_client
             .post(&test_url)
             .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", api_key))
             .json(&test_payload);
-
-        // Add cf-aig-authorization header if CF_AIG_TOKEN is set
-        if !cf_aig_token.is_empty() {
-            request = request.header("cf-aig-authorization", format!("Bearer {}", cf_aig_token));
-        }
-
-        // Add Authorization header with provider API key
-        request = request.header("Authorization", format!("Bearer {}", api_key));
 
         match request.send().await {
             Ok(response) => {

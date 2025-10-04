@@ -111,8 +111,8 @@ async fn main() {
         }
     }
 
-    // Load configuration
-    let config = match Config::from_env() {
+    // Load configuration from config.toml
+    let config = match Config::from_toml("config.toml") {
         Ok(cfg) => cfg,
         Err(e) => {
             error!("Configuration error: {}", e);
@@ -122,8 +122,8 @@ async fn main() {
     };
 
     info!(
-        "Cloudflare Base AI Gateway URL: {}",
-        config.cf_base_gateway_url
+        "Loaded {} gateway(s) for round-robin rotation",
+        config.gateways.len()
     );
     info!(
         "Local endpoint: http://{}/v1/chat/completions",

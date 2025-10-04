@@ -49,15 +49,11 @@ pub async fn proxy_handler(
     let method = parts.method;
     let headers = parts.headers;
 
-    // Construct the full target URL
-    // Always use the fixed /compat/chat/completions endpoint regardless of request path
-    // This endpoint requires model in "provider/model" format (e.g., "openai/gpt-4o-mini")
-    let target_url = format!(
-        "{}{}",
-        state.config.cf_base_gateway_url, state.config.openai_compat_path
-    );
+    // Get the next gateway in round-robin fashion
+    let target_url = state.config.next_target_url();
+    let gateway_token = state.config.current_gateway_token();
 
-    info!("Forwarding request to: {} {}", method, target_url);
+    info!("Forwarding request to: {} {} (round-robin)", method, target_url);
 
     // Log headers for debugging
     if let Some(cf_aig_auth) = headers.get("cf-aig-authorization") {
@@ -114,6 +110,15 @@ pub async fn proxy_handler(
     filtered_headers.remove("trailers");
     filtered_headers.remove("transfer-encoding");
     filtered_headers.remove("upgrade");
+
+    // Set the gateway token for authentication
+    let token_value = format!("Bearer {}", gateway_token);
+    filtered_headers.insert(
+        "cf-aig-authorization",
+        token_value.parse().map_err(|e| {
+            ProxyError::BadRequest(format!("Invalid gateway token format: {}", e))
+        })?,
+    );
 
     info!("Sending request to Cloudflare...");
     if was_stream_request {

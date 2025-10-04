@@ -2,6 +2,7 @@
 /release
 .cargo/
 .env
+.env.original
 Cargo.lock
 
 # Binary in project root (created by make build)
