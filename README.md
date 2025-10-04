@@ -3,6 +3,7 @@
 A lightweight, high-performance HTTP proxy that forwards OpenAI-compatible requests to Cloudflare's AI Gateway. Built with [Axum](https://github.com/tokio-rs/axum), [Tokio](https://tokio.rs/), and [Reqwest](https://github.com/seanmonstar/reqwest).
 
 ## Features
+
 - **OpenAI-Compatible API**: Drop-in replacement for OpenAI endpoints
 - **Native HTTPS/TLS Support**: Built-in HTTPS server with rustls (no reverse proxy needed)
 - **Multi-Gateway Load Balancing**: Round-robin rotation across multiple Cloudflare AI Gateways
@@ -15,12 +16,15 @@ A lightweight, high-performance HTTP proxy that forwards OpenAI-compatible reque
 - **Structured Logging**: Comprehensive tracing via `tracing` crate
 
 ## Prerequisites
+
 - **For running the binary**: Linux x86_64 with GLIBC 2.35+ (Ubuntu 22.04+, Debian 12+, etc.)
 - **For building from source**: Rust toolchain (1.77 or later is recommended; the crate targets the Rust 2024 edition).
 - A Cloudflare account with an AI Gateway configured and the corresponding `ACCOUNT_ID` and `GATEWAY_ID` values.
 
 ### GLIBC Compatibility Note
+
 Pre-built binaries require GLIBC 2.35 or later (Ubuntu 22.04+, Debian 12+). If you encounter `GLIBC_X.XX not found` errors:
+
 1. **Build from source** on your system: `make build`
 2. Or use a newer Linux distribution
 
@@ -29,6 +33,7 @@ The GitHub releases are built on Ubuntu 22.04 (GLIBC 2.35) for broad compatibili
 ## Installation
 
 ### Option 1: Download Binary (Recommended)
+
 ```bash
 # Download latest release from GitHub
 # https://github.com/v1cc0/snake/releases
@@ -39,6 +44,7 @@ sudo mv snake /usr/local/bin/
 ```
 
 ### Option 2: Build from Source
+
 ```bash
 git clone https://github.com/v1cc0/snake.git
 cd snake
@@ -97,10 +103,12 @@ test_model = "anthropic/claude-3-5-sonnet-20241022"
 ```
 
 **Required Configuration:**
+
 - At least one gateway in `[[gateways]]` array
 - At least one provider with `api_keys` array
 
 **HTTPS Configuration (Optional):**
+
 - Set `https_server = true` to enable native HTTPS/TLS
 - Provide paths to TLS certificate and private key files
 - Supports both PKCS8 and PKCS1 private key formats
@@ -108,10 +116,12 @@ test_model = "anthropic/claude-3-5-sonnet-20241022"
 - Default is HTTP mode (`https_server = false`)
 
 **Multi-Gateway Load Balancing:**
+
 - Add multiple `[[gateways]]` entries to distribute requests across different Cloudflare accounts/gateways
 - Requests are automatically rotated in round-robin fashion
 
 **Multi-Key Rotation:**
+
 - Configure multiple keys per provider in the `api_keys` array
 - Keys are automatically rotated per provider to handle rate limits
 
@@ -120,6 +130,7 @@ test_model = "anthropic/claude-3-5-sonnet-20241022"
 ### CLI Commands
 
 **Test Configuration**
+
 ```bash
 # Test all configured providers (default)
 snake test
@@ -134,17 +145,20 @@ snake test provider google-ai-studio
 ```
 
 The test command supports multiple modes:
+
 - **all** (default): Tests all providers with configured API keys and test models
 - **gateway**: Tests gateway round-robin rotation (makes 2x full rotations)
 - **provider <name>**: Tests ALL API keys for a specific provider (openai, google-ai-studio, anthropic, groq, mistral, cohere, xai)
 
 Each test validates:
+
 - Configuration file syntax and requirements
 - Network connectivity to Cloudflare AI Gateway
 - API key validity and provider response
 - Individual key masking for security
 
 **Validate Configuration**
+
 ```bash
 # Check default config.toml
 snake config check
@@ -154,6 +168,7 @@ snake config check /path/to/config.toml
 ```
 
 **Use Custom Config File**
+
 ```bash
 # Global --config flag works with all commands
 snake --config /etc/snake/prod.toml serve
@@ -161,6 +176,7 @@ snake --config /etc/snake/prod.toml test all
 ```
 
 **Update to Latest Version**
+
 ```bash
 snake update                          # Interactive prompt
 snake update -y                       # Auto-confirm
@@ -169,6 +185,7 @@ snake update -y --token "ghp_xxxxx"   # Combine options
 ```
 
 The update command will:
+
 - Download the latest binary from GitHub releases
 - Automatically detect if `snake.service` is running
 - Restart the service with the new version (if running)
@@ -177,11 +194,13 @@ The update command will:
 Note: Store GitHub token in `config.toml` or set `GITHUB_TOKEN` environment variable to avoid rate limiting.
 
 **Start Proxy Server**
+
 ```bash
 snake serve         # Or just: snake
 ```
 
 **Manage Systemd Service**
+
 ```bash
 # Install and start as systemd service (requires sudo)
 sudo snake service start
@@ -197,6 +216,7 @@ sudo journalctl -u snake -f
 ```
 
 The service will:
+
 - Start automatically on system boot
 - Restart automatically if it crashes (Restart=always)
 - Run as the current user (preserves .env access)
@@ -207,8 +227,9 @@ The service will:
 The proxy exposes an OpenAI-compatible endpoint at `http://localhost:{HOST_PORT}/v1/chat/completions`.
 
 **Non-streaming request:**
+
 ```bash
-curl http://localhost:38388/v1/chat/completions \
+curl http://localhost:3000/v1/chat/completions \
   -H "cf-aig-authorization: Bearer $CF_AIG_TOKEN" \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
@@ -219,6 +240,7 @@ curl http://localhost:38388/v1/chat/completions \
 ```
 
 **Note**: Model must be in `provider/model` format. Examples:
+
 - OpenAI: `openai/gpt-5-2025-08-07`, `openai/gpt-4o-mini`
 - Anthropic: `anthropic/claude-3-5-sonnet-20241022`
 - Google: `google/gemini-2.5-flash`
@@ -227,8 +249,9 @@ curl http://localhost:38388/v1/chat/completions \
 - Cohere: `cohere/command-a-reasoning-08-2025`
 
 **Streaming request (SSE):**
+
 ```bash
-curl http://localhost:38388/v1/chat/completions \
+curl http://localhost:3000/v1/chat/completions \
   -H "cf-aig-authorization: Bearer $CF_AIG_TOKEN" \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
@@ -240,6 +263,7 @@ curl http://localhost:38388/v1/chat/completions \
 ```
 
 **How streaming works:**
+
 1. Client sends request with `"stream": true`
 2. Proxy modifies to `"stream": false` for Cloudflare (CF doesn't support SSE)
 3. Proxy receives complete response from Cloudflare
@@ -249,6 +273,7 @@ curl http://localhost:38388/v1/chat/completions \
 ## Development
 
 ### Build Commands
+
 ```bash
 make build    # Build release binary to ./snake
 make clean    # Clean build artifacts
@@ -258,6 +283,7 @@ make fmt      # Format code
 ```
 
 ### Development Workflow
+
 ```bash
 cargo fmt
 cargo clippy --all-targets --all-features
@@ -284,6 +310,7 @@ Client (receives SSE stream)
 ```
 
 **Module Structure (v0.1.0+):**
+
 ```
 src/
 ├── main.rs       312 lines - CLI entry, routing, config check
@@ -296,6 +323,7 @@ src/
 ```
 
 **Key Components:**
+
 - **Config Manager** (config.rs): TOML parsing, multi-gateway and multi-key round-robin rotation
 - **Request Handler** (proxy.rs): Filters headers, provider detection, automatic API key rotation
 - **SSE Converter** (stream.rs): Splits complete response into word-by-word chunks
