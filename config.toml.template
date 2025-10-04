@@ -3,6 +3,13 @@
 
 host_port = 3000
 
+# HTTPS Configuration (optional)
+# Set https_server = true to enable HTTPS support
+# Provide paths to your TLS certificate and private key files
+https_server = false
+tls_cert_path = "cert.pem"
+tls_key_path = "key.pem"
+
 # Cloudflare AI Gateway configurations (rotated in round-robin)
 # Add multiple gateways to distribute load
 [[gateways]]

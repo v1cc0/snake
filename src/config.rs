@@ -37,6 +37,12 @@ pub struct ProviderConfig {
 pub struct TomlConfig {
     #[serde(default = "default_port")]
     pub host_port: u16,
+    #[serde(default)]
+    pub https_server: bool,
+    #[serde(default = "default_cert_path")]
+    pub tls_cert_path: String,
+    #[serde(default = "default_key_path")]
+    pub tls_key_path: String,
     pub gateways: Vec<GatewayConfig>,
     #[serde(default)]
     pub providers: HashMap<String, ProviderConfig>,
@@ -46,10 +52,21 @@ fn default_port() -> u16 {
     3000
 }
 
+fn default_cert_path() -> String {
+    "cert.pem".to_string()
+}
+
+fn default_key_path() -> String {
+    "key.pem".to_string()
+}
+
 /// Runtime configuration with round-robin state
 #[derive(Clone)]
 pub struct Config {
     pub listen_addr: String,
+    pub https_server: bool,
+    pub tls_cert_path: String,
+    pub tls_key_path: String,
     pub gateways: Vec<GatewayConfig>,
     pub providers: HashMap<String, ProviderConfig>,
     pub openai_compat_path: String,
@@ -95,6 +112,9 @@ impl Config {
 
         Ok(Self {
             listen_addr,
+            https_server: toml_config.https_server,
+            tls_cert_path: toml_config.tls_cert_path,
+            tls_key_path: toml_config.tls_key_path,
             gateways: toml_config.gateways,
             providers: toml_config.providers,
             openai_compat_path: "/compat/chat/completions".to_string(),

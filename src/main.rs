@@ -16,6 +16,7 @@ use test::{run_test, TestMode as TestModeEnum};
 use tracing::{Level, error, info};
 use tracing_subscriber::FmtSubscriber;
 use update::check_and_update;
+use axum_server::tls_rustls::RustlsConfig;
 
 // --- CLI Structure ---
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -177,10 +178,19 @@ async fn main() {
         "Loaded {} gateway(s) for round-robin rotation",
         config.gateways.len()
     );
+
+    let protocol = if config.https_server { "https" } else { "http" };
     info!(
-        "Local endpoint: http://{}/v1/chat/completions",
+        "Local endpoint: {}://{}/v1/chat/completions",
+        protocol,
         config.listen_addr
     );
+
+    if config.https_server {
+        info!("HTTPS mode enabled");
+        info!("  TLS Certificate: {}", config.tls_cert_path);
+        info!("  TLS Private Key: {}", config.tls_key_path);
+    }
 
     // Test network connectivity to Cloudflare AI Gateway before starting server
     info!("Testing network connectivity to gateway.ai.cloudflare.com...");
@@ -240,18 +250,51 @@ async fn main() {
             return;
         }
     };
-    info!("Gateway proxy listening on {}", addr);
 
-    // Start the server
-    let listener = match tokio::net::TcpListener::bind(addr).await {
-        Ok(listener) => listener,
-        Err(e) => {
-            error!("Failed to bind to address {}: {}", addr, e);
-            return;
+    // Start server based on HTTPS configuration
+    if config.https_server {
+        // HTTPS mode
+        info!("Starting HTTPS server on {}", addr);
+
+        // Load TLS configuration
+        let tls_config = match load_tls_config(&config.tls_cert_path, &config.tls_key_path).await {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                error!("Failed to load TLS configuration: {}", e);
+                eprintln!("\n❌ Error: Failed to load TLS configuration");
+                eprintln!("   {}", e);
+                eprintln!("\nPlease check:");
+                eprintln!("  1. Certificate file exists: {}", config.tls_cert_path);
+                eprintln!("  2. Private key file exists: {}", config.tls_key_path);
+                eprintln!("  3. Files are readable and in correct PEM format");
+                std::process::exit(1);
+            }
+        };
+
+        info!("✓ TLS configuration loaded successfully");
+        info!("Gateway proxy listening on {} (HTTPS)", addr);
+
+        if let Err(e) = axum_server::bind_rustls(addr, tls_config)
+            .serve(app.into_make_service())
+            .await
+        {
+            error!("HTTPS server error: {}", e);
         }
-    };
-    if let Err(e) = axum::serve(listener, app).await {
-        error!("Server error: {}", e);
+    } else {
+        // HTTP mode
+        info!("Starting HTTP server on {}", addr);
+        info!("Gateway proxy listening on {} (HTTP)", addr);
+
+        let listener = match tokio::net::TcpListener::bind(addr).await {
+            Ok(listener) => listener,
+            Err(e) => {
+                error!("Failed to bind to address {}: {}", addr, e);
+                return;
+            }
+        };
+        if let Err(e) = axum::serve(listener, app).await {
+            error!("Server error: {}", e);
+        }
     }
 }
 
@@ -309,4 +352,20 @@ fn check_config(config_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("  {} Provider API keys configured", provider_count);
 
     Ok(())
+}
+
+/// Load TLS configuration from certificate and private key files
+async fn load_tls_config(cert_path: &str, key_path: &str) -> Result<RustlsConfig, Box<dyn std::error::Error>> {
+    // Verify files exist before attempting to load
+    if !std::path::Path::new(cert_path).exists() {
+        return Err(format!("Certificate file not found: {}", cert_path).into());
+    }
+    if !std::path::Path::new(key_path).exists() {
+        return Err(format!("Private key file not found: {}", key_path).into());
+    }
+
+    // Use RustlsConfig::from_pem_file which handles certificate and key loading
+    RustlsConfig::from_pem_file(cert_path, key_path)
+        .await
+        .map_err(|e| format!("Failed to load TLS configuration: {}", e).into())
 }
