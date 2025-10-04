@@ -12,6 +12,11 @@ pub fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(100);
 
     tokio::spawn(async move {
+        // Log the raw response for debugging
+        if let Ok(text) = String::from_utf8(response_bytes.to_vec()) {
+            info!("SSE: Raw response preview (first 500 chars): {}", &text[..text.len().min(500)]);
+        }
+
         // Parse the response JSON
         if let Ok(json_response) = serde_json::from_slice::<Value>(&response_bytes) {
             info!("SSE: Successfully parsed JSON response");
@@ -125,11 +130,11 @@ pub fn convert_to_sse_stream(status: StatusCode, response_bytes: bytes::Bytes) -
                 );
                 let _ = tx.send(Ok(sse_data)).await;
             }
-        } else {
-            error!("SSE: Failed to parse response as JSON");
+        } else if let Err(e) = serde_json::from_slice::<Value>(&response_bytes) {
+            error!("SSE: Failed to parse response as JSON: {}", e);
             // Failed to parse JSON, send raw data
             if let Ok(text) = String::from_utf8(response_bytes.to_vec()) {
-                error!("SSE: Response text preview: {}", &text[..text.len().min(200)]);
+                error!("SSE: Response text: {}", text);
                 let sse_data = format!("data: {}\n\n", text);
                 let _ = tx.send(Ok(sse_data)).await;
             }
