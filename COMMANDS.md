@@ -251,6 +251,5 @@ Available providers (as configured in config.toml):
 - `cohere`
 - `anthropic`
 - `xai`
-- `workersai`
 
 **Note:** Provider name must match the key in `[providers.<name>]` section of config.toml.
