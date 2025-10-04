@@ -179,17 +179,21 @@ async fn main() {
         config.gateways.len()
     );
 
-    let protocol = if config.https_server { "https" } else { "http" };
-    info!(
-        "Local endpoint: {}://{}/v1/chat/completions",
-        protocol,
-        config.listen_addr
-    );
-
+    // Display server mode and endpoints
     if config.https_server {
-        info!("HTTPS mode enabled");
+        info!("Server mode: HTTPS (port {})", config.https_port);
         info!("  TLS Certificate: {}", config.tls_cert_path);
         info!("  TLS Private Key: {}", config.tls_key_path);
+        info!(
+            "Public endpoint: https://0.0.0.0:{}/v1/chat/completions",
+            config.https_port
+        );
+    } else {
+        info!("Server mode: HTTP (port {})", config.http_port);
+        info!(
+            "Local endpoint: http://0.0.0.0:{}/v1/chat/completions",
+            config.http_port
+        );
     }
 
     // Test network connectivity to Cloudflare AI Gateway before starting server
@@ -254,7 +258,7 @@ async fn main() {
     // Start server based on HTTPS configuration
     if config.https_server {
         // HTTPS mode
-        info!("Starting HTTPS server on {}", addr);
+        info!("Starting HTTPS server on 0.0.0.0:{}", config.https_port);
 
         // Load TLS configuration
         let tls_config = match load_tls_config(&config.tls_cert_path, &config.tls_key_path).await {
@@ -272,7 +276,7 @@ async fn main() {
         };
 
         info!("✓ TLS configuration loaded successfully");
-        info!("Gateway proxy listening on {} (HTTPS)", addr);
+        info!("🚀 HTTPS proxy server ready on port {}", config.https_port);
 
         if let Err(e) = axum_server::bind_rustls(addr, tls_config)
             .serve(app.into_make_service())
@@ -282,8 +286,7 @@ async fn main() {
         }
     } else {
         // HTTP mode
-        info!("Starting HTTP server on {}", addr);
-        info!("Gateway proxy listening on {} (HTTP)", addr);
+        info!("Starting HTTP server on 0.0.0.0:{}", config.http_port);
 
         let listener = match tokio::net::TcpListener::bind(addr).await {
             Ok(listener) => listener,
@@ -292,6 +295,9 @@ async fn main() {
                 return;
             }
         };
+
+        info!("🚀 HTTP proxy server ready on port {}", config.http_port);
+
         if let Err(e) = axum::serve(listener, app).await {
             error!("Server error: {}", e);
         }

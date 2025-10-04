@@ -1,14 +1,15 @@
 # Snake Proxy Configuration Template
 # Copy this file to config.toml and fill in your actual values
 
-host_port = 3000
+host_port = 3000     # HTTP server port (used when https_server = false)
+https_port = 443     # HTTPS server port (used when https_server = true)
 
 # HTTPS Configuration (optional)
 # Set https_server = true to enable HTTPS support
 # Provide paths to your TLS certificate and private key files
 https_server = false
-tls_cert_path = "cert.pem"
-tls_key_path = "key.pem"
+tls_cert_path = "cert.pem"   # Path to TLS certificate file
+tls_key_path = "key.pem"     # Path to TLS private key file
 
 # Cloudflare AI Gateway configurations (rotated in round-robin)
 # Add multiple gateways to distribute load

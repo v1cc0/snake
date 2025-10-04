@@ -37,6 +37,8 @@ pub struct ProviderConfig {
 pub struct TomlConfig {
     #[serde(default = "default_port")]
     pub host_port: u16,
+    #[serde(default = "default_https_port")]
+    pub https_port: u16,
     #[serde(default)]
     pub https_server: bool,
     #[serde(default = "default_cert_path")]
@@ -52,6 +54,10 @@ fn default_port() -> u16 {
     3000
 }
 
+fn default_https_port() -> u16 {
+    443
+}
+
 fn default_cert_path() -> String {
     "cert.pem".to_string()
 }
@@ -64,6 +70,8 @@ fn default_key_path() -> String {
 #[derive(Clone)]
 pub struct Config {
     pub listen_addr: String,
+    pub http_port: u16,
+    pub https_port: u16,
     pub https_server: bool,
     pub tls_cert_path: String,
     pub tls_key_path: String,
@@ -108,10 +116,18 @@ impl Config {
             }
         }
 
-        let listen_addr = format!("0.0.0.0:{}", toml_config.host_port);
+        // Use https_port when HTTPS is enabled, otherwise use host_port
+        let port = if toml_config.https_server {
+            toml_config.https_port
+        } else {
+            toml_config.host_port
+        };
+        let listen_addr = format!("0.0.0.0:{}", port);
 
         Ok(Self {
             listen_addr,
+            http_port: toml_config.host_port,
+            https_port: toml_config.https_port,
             https_server: toml_config.https_server,
             tls_cert_path: toml_config.tls_cert_path,
             tls_key_path: toml_config.tls_key_path,
